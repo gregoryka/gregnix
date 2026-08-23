@@ -19,6 +19,8 @@
             args = [ "--assume-in-merge" ];
           };
 
+          convco.enable = true;
+
           gitleaks = {
             enable = true;
             name = "gitleaks";
