@@ -43,6 +43,7 @@
 
     services.sops.enable = true;
 
+    system.certs.enable = true;
     system.xdg.enable = true;
   };
 
