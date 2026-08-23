@@ -50,5 +50,9 @@ in
       # https://github.com/Mic92/sops-nix/issues/890.
       age.plugins = agePlugins;
     };
+
+    programs.zsh.initContent = mkIf config.programs.zsh.enable ''
+      eval "$(sops completion zsh)"
+    '';
   };
 }
