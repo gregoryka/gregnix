@@ -142,6 +142,19 @@ rec {
     : attrsOf `{ sopsFile :: path; key :: str; }` -- ENV_VAR -> sops
       field, decrypted fresh on every invocation via
       `sops decrypt --extract`. Defaults to `{ }`.
+
+    `noMaskingCommands`
+    : listOf str -- subcommand prefixes (e.g. `[ "auth token" ]`,
+      matched word-for-word against the wrapped command's leading
+      positional args) that legitimately print a secret as their real
+      output -- a credential-helper protocol, a `<tool> token`-style
+      command, etc. -- and therefore need `op run --no-masking` for that
+      invocation specifically. `op run` masks (redacts to `[CONCEALED]`)
+      any injected secret it sees in the wrapped process's stdout/stderr
+      by default; every invocation not matching an entry here keeps that
+      default, so secrets that leak into output some other way (verbose
+      logging, error dumps) still get redacted. Defaults to `[ ]`
+      (always masked).
   */
   mkSecretsWrapper =
     {
@@ -150,6 +163,7 @@ rec {
       name,
       opEnv ? { },
       sopsEnv ? { },
+      noMaskingCommands ? [ ],
     }:
     let
       opRunArgs = lib.concatStringsSep " " (
@@ -162,6 +176,24 @@ rec {
           export ${envVar}
         '') sopsEnv
       );
+
+      # `${1:-}`, `${2:-}`, ... as literal bash text -- built via string
+      # concatenation (not `''${...}` string interpolation escapes) since
+      # the positional index is only known once `lib.imap0` below runs.
+      positional = n: "\${" + toString n + ":-}";
+
+      # One `(( "${1:-}" == "word1" && "${2:-}" == "word2" ))`-style group
+      # per `noMaskingCommands` entry, matching its words against the
+      # wrapped command's leading positional args.
+      argMatch =
+        cmd:
+        "("
+        + lib.concatStringsSep " && " (
+          lib.imap0 (i: word: ''"${positional (i + 1)}" == "${word}"'') (lib.splitString " " cmd)
+        )
+        + ")";
+
+      noMaskingCheck = lib.concatStringsSep " || " (map argMatch noMaskingCommands);
     in
     pkgs.writeShellApplication {
       inherit name;
@@ -174,7 +206,13 @@ rec {
           # environment.
           if [[ -z "''${_OP_RUN_ACTIVE:-}" ]]; then
             export _OP_RUN_ACTIVE=1
-            exec env ${opRunArgs} op run --no-masking -- "$0" "$@"
+            maskingFlag=()
+            ${lib.optionalString (noMaskingCommands != [ ]) ''
+              if [[ ${noMaskingCheck} ]]; then
+                maskingFlag=(--no-masking)
+              fi
+            ''}
+            exec env ${opRunArgs} op run "''${maskingFlag[@]}" -- "$0" "$@"
           fi
         ''
         + lib.optionalString (sopsEnv != { }) ''
