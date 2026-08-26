@@ -12,7 +12,7 @@ let
 in
 {
   options.gregnix.system.certs = {
-    enable = mkEnableOption "pointing SSL_CERT_FILE/NIX_SSL_CERT_FILE at the OS's trust store";
+    enable = mkEnableOption "pointing SSL_CERT_FILE/SSL_CERT_DIR/NIX_SSL_CERT_FILE at the OS's trust store";
 
     caBundlePath = mkOpt lib.types.path "/etc/ssl/certs/ca-certificates.crt" ''
       Path to the OS-provided CA bundle.
@@ -23,6 +23,7 @@ in
     home.sessionVariables = {
       SSL_CERT_FILE = cfg.caBundlePath;
       NIX_SSL_CERT_FILE = cfg.caBundlePath;
+      SSL_CERT_DIR = builtins.dirOf cfg.caBundlePath;
     };
   };
 }
