@@ -18,7 +18,7 @@
 # QODO_DISABLE_AUTOUPDATE below); that's disabled here since this
 # derivation -- not `qodo` itself -- owns the installed version.
 let
-  version = "0.1.0-next.34";
+  version = "0.1.0-next.36";
   channel = "next";
 in
 stdenv.mkDerivation {
@@ -27,7 +27,7 @@ stdenv.mkDerivation {
 
   src = fetchurl {
     url = "https://get.qodo.ai/releases/${version}/qodo.mjs";
-    hash = "sha256-3RlGZ2QyJjZzcEfL2W81cFkZJl8Z7Mk3Pvr4/jxPhms=";
+    hash = "sha256-RDLNmpjJQOWUN3OwZZFCpAtz5BK6xKT59I1HE2EPebM=";
   };
 
   dontUnpack = true;
