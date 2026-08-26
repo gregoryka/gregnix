@@ -34,6 +34,25 @@ These include private keys, passwords, and access tokens that grant direct syste
 - **Daemons**: Linux - Use systemd-creds with LoadCredential.
 - **Flatpak apps (Linux)**: Use oo7 (or desktop environment's secret service).
 
+#### **Token Naming Convention**
+
+When creating a new token (a 1Password item, an API key, etc.), name it using:
+
+```
+[Scope/Machine]-[Service]-[Purpose]-[Type]
+```
+
+| Segment | Description | Example values |
+| :---- | :---- | :---- |
+| **Scope/Machine** | Where the token may be used: `global` if shared across every host, otherwise the specific hostname it's restricted to. | `global`, `vm`, `mac` |
+| **Service** | The external system/API the token authenticates to. | `qodo`, `artifactory`, `github` |
+| **Purpose** | What consumes the token -- the client, workflow, or access level it's scoped to. | `cli`, `npm`, `ci`, `readonly` |
+| **Type** | The token's shape/kind. | `key`, `token`, `credential`, `pat` |
+
+Examples:
+
+- `global-qodo-cli-key` -- Qodo CLI API key, shared across every machine.
+- `vm-artifactory-npm-token` -- Artifactory token scoped to npm registry auth, only used in the vm.
 
 ## **Implementation Guidelines**
 
