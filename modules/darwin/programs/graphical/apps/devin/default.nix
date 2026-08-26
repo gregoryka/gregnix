@@ -18,14 +18,8 @@ in
     gregnix.tools.homebrew.enable = true;
 
     homebrew.casks = [
-      {
-        name = "devin-desktop";
-        greedy = false;
-      }
-      {
-        name = "devin-cli";
-        greedy = false;
-      }
+      "devin-desktop"
+      "devin-cli"
     ];
   };
 }

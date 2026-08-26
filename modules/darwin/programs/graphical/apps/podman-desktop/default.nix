@@ -17,11 +17,6 @@ in
   config = mkIf cfg.enable {
     gregnix.tools.homebrew.enable = true;
 
-    homebrew.casks = [
-      {
-        name = "podman-desktop";
-        greedy = false;
-      }
-    ];
+    homebrew.casks = [ "podman-desktop" ];
   };
 }

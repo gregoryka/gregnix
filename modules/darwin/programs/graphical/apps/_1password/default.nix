@@ -18,14 +18,8 @@ in
     gregnix.tools.homebrew.enable = true;
 
     homebrew.casks = [
-      {
-        name = "1password";
-        greedy = false;
-      }
-      {
-        name = "1password-cli";
-        greedy = false;
-      }
+      "1password"
+      "1password-cli"
     ];
   };
 }

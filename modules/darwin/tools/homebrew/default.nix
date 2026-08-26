@@ -34,13 +34,10 @@ in
         autoUpdate = true;
       };
 
-      greedyCasks = true;
-
       onActivation = {
         autoUpdate = true;
         cleanup = "none";
-        upgrade = true;
-        extraFlags = [ "--force" ];
+        upgrade = false;
       };
     };
   };

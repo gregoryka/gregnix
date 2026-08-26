@@ -17,11 +17,6 @@ in
   config = mkIf cfg.enable {
     gregnix.tools.homebrew.enable = true;
 
-    homebrew.casks = [
-      {
-        name = "keepingyouawake";
-        greedy = false;
-      }
-    ];
+    homebrew.casks = [ "keepingyouawake" ];
   };
 }

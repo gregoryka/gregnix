@@ -15,18 +15,9 @@
   gregnix.programs.graphical.apps.ghostty.enable = true;
 
   homebrew.casks = [
-    {
-      name = "alt-tab";
-      greedy = false;
-    }
-    {
-      name = "beyond-compare";
-      greedy = false;
-    }
-    {
-      name = "google-drive";
-      greedy = false;
-    }
+    "alt-tab"
+    "beyond-compare"
+    "google-drive"
   ];
 
   # Corporate network TLS inspection (Zscaler) re-signs HTTPS traffic with a

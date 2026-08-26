@@ -16,11 +16,6 @@ in
 
   config = mkIf cfg.enable {
     gregnix.tools.homebrew.enable = true;
-    homebrew.casks = [
-      {
-        name = "vicinae";
-        greedy = false;
-      }
-    ];
+    homebrew.casks = [ "vicinae" ];
   };
 }
