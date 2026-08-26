@@ -38,7 +38,10 @@ in
         eza.enable = true;
         fd.enable = true;
         fzf.enable = true;
-        gh.enable = true;
+        gh = {
+          tokenRef = "op://Employee/global-github-cli-pat/credential";
+          enterpriseTokenRef = "op://Employee/global-ghe-cli-pat/credential";
+        };
         git.enable = true;
         lazygit.enable = true;
         nh.enable = true;

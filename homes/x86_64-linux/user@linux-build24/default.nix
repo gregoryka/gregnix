@@ -17,7 +17,10 @@
         eza.enable = true;
         fd.enable = true;
         fzf.enable = true;
-        gh.enable = true;
+        gh = {
+          tokenSopsFile = lib.getFile "secrets/work/linux-build24/gh.yaml";
+          enterpriseTokenSopsFile = lib.getFile "secrets/work/linux-build24/gh.yaml";
+        };
         git.enable = true;
         lazygit.enable = true;
         nh.enable = true;
