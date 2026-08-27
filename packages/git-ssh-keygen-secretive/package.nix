@@ -24,6 +24,9 @@ writeShellApplication {
     export SSH_AUTH_SOCK="${socket}"
     exec ssh-keygen "$@"
   '';
+
+  passthru = { inherit secretiveForwardedSocket; };
+
   meta = {
     description = "ssh-keygen wrapper pointed at the Secretive agent socket, for git ssh-format commit signing";
     mainProgram = "git-ssh-keygen-secretive";

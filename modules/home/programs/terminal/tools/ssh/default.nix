@@ -10,19 +10,38 @@ let
     mkEnableOption
     mkIf
     mkMerge
+    mkOption
     concatStringsSep
+    concatMapStringsSep
+    concatLists
     mapAttrs'
+    mapAttrsToList
     nameValuePair
+    filterAttrs
+    optionalString
     ;
   inherit (lib.gregnix) mkOpt;
 
   cfg = config.gregnix.programs.terminal.tools.ssh;
 
-  githubKnownHosts = [
-    "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
-    "github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg="
-    "github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk="
-  ];
+  hostPatternOf = name: host: if host.hostPattern != null then host.hostPattern else name;
+
+  knownHostsKeyOf =
+    name: host: if host.hostName != null then host.hostName else hostPatternOf name host;
+
+  mkHostBlock = name: host: ''
+    Host ${hostPatternOf name host}
+    ${optionalString (host.hostName != null) "  HostName ${host.hostName}"}
+    ${optionalString (host.user != null) "  User ${host.user}"}
+    ${optionalString (host.identityAgent != null) "  IdentityAgent \"${host.identityAgent}\""}
+    ${optionalString (
+      host.publicKey != ""
+    ) "  IdentityFile \"${config.xdg.configHome}/ssh/${name}.pub\""}
+    ${optionalString host.identitiesOnly "  IdentitiesOnly yes"}
+    ${concatMapStringsSep "\n" (
+      fwd: "  RemoteForward \"${fwd.remote}\" \"${fwd.local}\""
+    ) host.remoteForwards}
+  '';
 in
 {
   options.gregnix.programs.terminal.tools.ssh = {
@@ -48,6 +67,99 @@ in
       `IdentityFile` directive elsewhere can point at a stable path
       instead of e.g. an app sandbox container path directly.
     '';
+
+    secretiveSocket = mkOption {
+      type = types.str;
+      readOnly = true;
+      default = "${config.home.homeDirectory}/Library/Containers/com.maxgoedjen.Secretive.SecretAgent/Data/socket.ssh";
+      description = ''
+        Path to the Secretive (macOS Secure Enclave) agent's fixed sandbox
+        socket.
+      '';
+    };
+
+    hosts =
+      mkOpt
+        (types.attrsOf (
+          types.submodule {
+            options = {
+              hostPattern = mkOpt (types.nullOr types.str) null ''
+                Override for the literal `Host` pattern text -- defaults to
+                this attribute's own name. Needed when the name itself must
+                stay a plain, eval-time-safe string (it's also what
+                `identityFiles`/`IdentityFile` materialize the public key
+                filename from) but the real ssh `Host` pattern is a
+                `sops.placeholder.*` value -- set the attribute name to a
+                safe alias and this to the placeholder.
+              '';
+
+              hostName = mkOpt (types.nullOr types.str) null "Optional `HostName` directive.";
+
+              user = mkOpt (types.nullOr types.str) null "Optional `User` directive.";
+
+              identityAgent = mkOpt (types.nullOr types.str) null ''
+                Optional `IdentityAgent` socket path (e.g. `secretiveSocket`
+                above, or `_1password-cli.sshSocket`).
+              '';
+
+              publicKey = mkOpt types.str "" ''
+                Public key content (not secret) for this host's identity, if
+                any. When set, materialized to `$XDG_CONFIG_HOME/ssh/<name>.pub`
+                (via `identityFiles`) and referenced by this Host block's
+                `IdentityFile`. Leave unset for agent-only auth (e.g.
+                a client that can't handle `IdentityFile` pointing at a
+                public key, only an agent offering one).
+              '';
+
+              identitiesOnly = mkOpt types.bool false ''
+                Whether to restrict this Host to only the identity above
+                (`IdentitiesOnly yes`) -- e.g. so a host with a strict
+                auth-attempt limit (like github.com) isn't offered every
+                other key loaded into the same agent.
+              '';
+
+              remoteForwards =
+                mkOpt
+                  (types.listOf (
+                    types.submodule {
+                      options = {
+                        local = mkOpt types.str "" ''
+                          Local socket path/address to forward -- the second
+                          argument to `RemoteForward`.
+                        '';
+                        remote = mkOpt types.str "" ''
+                          Path/address on the remote host that `local` is
+                          forwarded to -- the first (bind) argument to
+                          `RemoteForward`.
+                        '';
+                      };
+                    }
+                  ))
+                  [ ]
+                  ''
+                    `RemoteForward` entries for this Host.
+                  '';
+
+              hostKeys = mkOpt (types.listOf types.str) [ ] ''
+                SSH host public keys (e.g. from `ssh-keyscan`) for this
+                Host; public, not secret. Contributes a "<address> <key>"
+                line to `extraKnownHosts` for each -- keyed by `hostName`
+                if set, else by `hostPattern`/this attribute's name -- so a
+                Host's connection config and its known-hosts pinning are
+                declared together rather than drifting apart in two
+                different places.
+              '';
+            };
+          }
+        ))
+        { }
+        ''
+          SSH `Host` blocks, keyed by ssh alias/hostname pattern. Handles
+          materializing the public key (if any) and wiring
+          `IdentityAgent`/`IdentityFile`/`RemoteForward`/`IdentitiesOnly`
+          consistently, rather than every consumer hand-rolling the same
+          `Host` block shape.
+        '';
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -83,25 +195,38 @@ in
           ControlPersist = "10m";
           # "~/.ssh/known_hosts" stays a regular, user-writable file so
           # normal TOFU prompts still work; the nix-managed entries live in
-          # separate files since `home.file` is a read-only store symlink.
+          # a separate file since `home.file`/`xdg.configFile` are
+          # read-only store symlinks.
           UserKnownHostsFile = [
             "~/.ssh/known_hosts"
-            "~/.ssh/nix-known-hosts"
             config.sops.templates."ssh-extra-known-hosts".path
           ];
         };
       };
 
-      home.file = {
-        ".ssh/nix-known-hosts".text = concatStringsSep "\n" githubKnownHosts;
-        ".ssh/controlmasters/.keep".text = "";
-      };
+      home.file.".ssh/controlmasters/.keep".text = "";
     }
 
     (mkIf (cfg.identityFiles != { }) {
       xdg.configFile = mapAttrs' (
         name: content: nameValuePair "ssh/${name}" { text = content; }
       ) cfg.identityFiles;
+    })
+
+    (mkIf (cfg.hosts != { }) {
+      gregnix.programs.terminal.tools.ssh = {
+        identityFiles = mapAttrs' (name: host: nameValuePair "${name}.pub" host.publicKey) (
+          filterAttrs (_name: host: host.publicKey != "") cfg.hosts
+        );
+
+        extraConfig = concatStringsSep "\n" (mapAttrsToList mkHostBlock cfg.hosts);
+
+        extraKnownHosts = concatLists (
+          mapAttrsToList (
+            name: host: map (key: "${knownHostsKeyOf name host} ${key}") host.hostKeys
+          ) cfg.hosts
+        );
+      };
     })
 
     (mkIf (cfg.authorizedKeys != [ ]) {

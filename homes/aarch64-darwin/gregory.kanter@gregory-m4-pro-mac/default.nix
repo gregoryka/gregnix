@@ -9,18 +9,13 @@
 let
   inherit (pkgs.stdenv.hostPlatform) isDarwin;
   inherit (config.gregnix.programs.graphical.apps.vicinae) mkRaycastExt;
+  inherit (config.gregnix.programs.terminal.tools.ssh) secretiveSocket;
+
+  inherit (pkgs.gregnix.git-ssh-keygen-secretive) secretiveForwardedSocket;
 in
 {
   gregnix = {
     archetypes.work.enable = true;
-    archetypes.devVmClient = {
-      enable = true;
-      identityPublicKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBJFdl9FOAgLXOpRupIEvaowKVQjG4ScYK7v2j+lW19RILGHamIhnsNQP0CRhWG5lKrcYV4KjQ4ezjQ9a+rcnTok=";
-      vms."dev-vm" = {
-        host = config.sops.placeholder.dev_vm_ip;
-        hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILDnMt0VZYFyjEgXGpErGwT0VSJ4wZ90tbmW9IVaUxKQ";
-      };
-    };
 
     user = {
       enable = true;
@@ -47,7 +42,61 @@ in
         nh.enable = true;
         podman.enable = true;
         ripgrep.enable = true;
-        ssh.enable = true;
+        ssh = {
+          enable = true;
+
+          hosts = {
+            "dev-vm" = {
+              hostName = config.sops.placeholder.dev_vm_ip;
+              user = "user";
+              identityAgent = secretiveSocket;
+              publicKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBJFdl9FOAgLXOpRupIEvaowKVQjG4ScYK7v2j+lW19RILGHamIhnsNQP0CRhWG5lKrcYV4KjQ4ezjQ9a+rcnTok=";
+              remoteForwards = [
+                {
+                  local = secretiveSocket;
+                  remote = secretiveForwardedSocket;
+                }
+              ];
+              hostKeys = [
+                "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILDnMt0VZYFyjEgXGpErGwT0VSJ4wZ90tbmW9IVaUxKQ"
+              ];
+            };
+
+            # Claude Desktop's embedded ssh2 client eagerly parses
+            # `IdentityFile` as private key material and crashes on a
+            # public key file, so this alias is agent-only (no `publicKey`)
+            # and authenticates via 1Password's agent instead of
+            # Secretive's -- but still forwards Secretive's socket (not
+            # 1Password's) below, since that's the one with the signing
+            # key the vm's own git commit signing needs.
+            # Upstream bug: https://github.com/anthropics/claude-code/issues/29717#issuecomment-4321921990
+            "dev-vm-claude" = {
+              hostName = config.sops.placeholder.dev_vm_ip;
+              user = "user";
+              identityAgent = config.gregnix.programs.terminal.tools._1password-cli.sshSocket;
+              remoteForwards = [
+                {
+                  local = secretiveSocket;
+                  remote = secretiveForwardedSocket;
+                }
+              ];
+            };
+
+            "github.com" = {
+              user = "git";
+              identityAgent = secretiveSocket;
+              publicKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBIFn4LwHejbKrC95+ysTZK3UZ4gSlHsC/cjTY6boWCjlfAc1jcuoW6UX36QpzATPzMqlq0aqjhHSCVcB8Jt/EcA=";
+              identitiesOnly = true;
+            };
+
+            "ghe" = {
+              user = "git";
+              identityAgent = secretiveSocket;
+              publicKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBMJ6D2lXvPwSyT4KVjX/S0N2rxYV6K7Ik1uxbVATiBlfdimu//Kg+BxE94pQC/Q7Gx34E9HDKtCshPjjwLO/Xb4=";
+              identitiesOnly = true;
+            };
+          };
+        };
         starship.enable = true;
         yazi.enable = true;
         zellij.enable = true;
