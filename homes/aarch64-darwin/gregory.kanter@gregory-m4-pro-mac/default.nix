@@ -59,6 +59,8 @@ in
               ];
               hostKeys = [
                 "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILDnMt0VZYFyjEgXGpErGwT0VSJ4wZ90tbmW9IVaUxKQ"
+                "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBJ+RpOd+liw8YFTykUvsu2dw8/jcFQjzzaPa2UfqXcu2Jl5J1UiUCQJefDjbXMJYje6m8yCJTTYtmH/kndhmab0="
+                "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC5QKChzryXeGNMtNO8G7BS3DqJnHiRVu61X9tpEsYYrxRu+nRJSrlUak/vzD1DGSACkO5xLCvo19robrIDApFEw/ADFRxNTGTNXLZVH1AIw5uaoA7koa96SalE836nwxB/UeNSoFUwUxam4KeQuuIu/nhgaKfwGxxaiGBx+xK9aiwLKnLPf805A+efj9QuShQJAGql6/F7mvJBlT6FT0lCnm36qbTxDhpsK5zSaCIk7nIvz2Qo8kuyqesXKZTth9Hu571IjZbPV3DkK/7hwhWCdzeh1QQZIoyxuUfR0S9YpK5lSp88EwKGfbR14EzuMXc8kreCv8Z44tOh+Rd79rgop+rBxKZc0B1iKrpmnaL62qTWyM12m3GQDn3tWyxZw9dfke+31DJIgaug+VYmYusZJm/aIVis0+PWhXb2I+EFO6h61fhEbi18nEkX3Bmkh8gXk9lQaK4hBi5VTRl6v6EPLQwdF4paA1voNBWAIMNRO3BJXmPt4TOjNhr/sviw2a8="
               ];
             };
 

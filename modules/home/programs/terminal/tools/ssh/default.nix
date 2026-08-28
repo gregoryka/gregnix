@@ -205,6 +205,22 @@ in
       };
 
       home.file.".ssh/controlmasters/.keep".text = "";
+
+      # Some clients (e.g. Claude Desktop's embedded ssh2 client)
+      # only ever check the literal `~/.ssh/known_hosts`, ignoring the second
+      # `UserKnownHostsFile` path above entirely. Merge the nix-managed entries
+      # into it too.
+      home.activation.syncNixKnownHosts = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        run install -d -m700 "$HOME/.ssh"
+        run touch "$HOME/.ssh/known_hosts"
+        extraKnownHosts="${config.sops.templates."ssh-extra-known-hosts".path}"
+        if [[ -s "$extraKnownHosts" ]]; then
+          while IFS= read -r hostKeyLine || [[ -n "$hostKeyLine" ]]; do
+            [[ -z "$hostKeyLine" ]] && continue
+            grep -qxF "$hostKeyLine" "$HOME/.ssh/known_hosts" || echo "$hostKeyLine" >> "$HOME/.ssh/known_hosts"
+          done < "$extraKnownHosts"
+        fi
+      '';
     }
 
     (mkIf (cfg.identityFiles != { }) {
