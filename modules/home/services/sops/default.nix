@@ -51,6 +51,11 @@ in
       age.plugins = agePlugins;
     };
 
+    launchd.agents.sops-nix.config = mkIf pkgs.stdenv.hostPlatform.isDarwin {
+      KeepAlive = lib.mkForce { SuccessfulExit = false; };
+      ThrottleInterval = 60;
+    };
+
     programs.zsh.initContent = mkIf config.programs.zsh.enable ''
       eval "$(sops completion zsh)"
     '';
