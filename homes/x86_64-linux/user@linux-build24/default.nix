@@ -41,6 +41,7 @@
         zoxide.enable = true;
 
         qodo.tokenSopsFile = lib.getFile "secrets/work/linux-build24/qodo.yaml";
+        sonarqube.tokenSopsFile = lib.getFile "secrets/work/linux-build24/sonarqube.yaml";
       };
     };
 

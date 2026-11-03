@@ -17,6 +17,7 @@ let
   gitSecretsFile = getFile "secrets/work/git.yaml";
   userSecretsFile = getFile "secrets/work/user.yaml";
   qodoSecretsFile = getFile "secrets/work/qodo.yaml";
+  sonarqubeSecretsFile = getFile "secrets/work/sonarqube.yaml";
 
   githubSigningKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBBdm9VQQSYhCdagTzOpOwtHZXzrz24vhelbi9IUbmJ3qc/OjwdEysOm0+O5xjwPdselTgTb5jAudlyfaay4TIvo=";
   githubEmail = "247164767+gregory-kanter-s1@users.noreply.github.com";
@@ -87,6 +88,11 @@ in
     gregnix.programs.terminal.tools.qodo = {
       enable = true;
       sdkUrlSopsFile = qodoSecretsFile;
+    };
+
+    gregnix.programs.terminal.tools.sonarqube = {
+      enable = true;
+      serverUrlSopsFile = sonarqubeSecretsFile;
     };
 
     gregnix.programs.terminal.tools.gh.enable = true;

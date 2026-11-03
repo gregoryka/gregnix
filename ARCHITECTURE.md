@@ -30,9 +30,31 @@ These include private keys, passwords, and access tokens that grant direct syste
 
 #### **Tools & Enforcement**
 
-- **CLI tools**: Runtime SOPS decryption with Nix managing the wrapper.
+- **CLI tools**: Runtime SOPS decryption with Nix managing the wrapper, unless the tool qualifies for its own keychain storage (see below).
 - **Daemons**: Linux - Use systemd-creds with LoadCredential.
 - **Flatpak apps (Linux)**: Use oo7 (or desktop environment's secret service).
+
+#### **Executable-Bound Keychain Storage (macOS)**
+
+SOPS decryption and `/usr/bin/security`-readable keychain items are available to any process running as the user. A macOS keychain item can instead be bound to a single executable, so other processes get an approval dialog rather than the secret. Prefer the tool's own keychain storage (e.g. `<tool> auth login`) over a SOPS wrapper when the executable meets both requirements:
+
+1. **Calls the Security framework directly.** The item's ACL then trusts the tool itself. Tools that shell out to `/usr/bin/security` (e.g. `gh`) produce items any process can read.
+2. **Has a stable code-signing identity.** A Developer ID (or other certificate-anchored) signature yields a designated requirement that survives updates and Nix store path changes. Ad-hoc signed binaries (most Nix-built tools, e.g. `jk`) are bound by cdhash, so every rebuild invalidates the ACL and triggers an approval dialog that blocks agents.
+
+Optional nice-to-haves (not enforced by the Security framework, but they strengthen the binding):
+
+- **Hardened runtime.** Blocks `DYLD_INSERT_LIBRARIES` and debugger attachment, which could otherwise run code inside the trusted process and read the secret.
+- **Does not hand the secret out.** No command (e.g. `<tool> auth token`) or debug output that prints the stored credential, no passing it to child processes (e.g. via environment variables), and no unauthenticated configuration (proxies, CA certificates, alternative server URLs) that redirects where it is sent.
+
+The Nix package must also leave the vendor signature intact; verify with `codesign -v --strict` and `codesign -dv` (look for a `TeamIdentifier`, and `flags=0x10000(runtime)` for the hardened runtime). Install such tools unwrapped, since the ACL is checked against the process that reads the item.
+
+This protects the raw secret, not its use: any process can still run the tool. Linux has no equivalent per-executable binding; isolation there requires a separate user or a sandbox.
+
+Assessed tools:
+
+- `sonar` (sonarqube-cli 1.11): meets both requirements and has the hardened runtime, but does hand the secret out. It passes the token to its MCP container via `SONARQUBE_TOKEN` in the container runtime's environment, and `sonar config set` can change the proxy, CA certificate and `mcp.container.serverUrl` without authentication. Keychain storage still prevents trivially reading the token, but does not stop a determined same-user process from obtaining it.
+- `gh`: fails 1 (uses `/usr/bin/security`); use SOPS.
+- `jk`: fails 2 (ad-hoc signed); use SOPS.
 
 #### **Token Naming Convention**
 
