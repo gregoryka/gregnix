@@ -65,26 +65,6 @@ in
               ];
             };
 
-            # Claude Desktop's embedded ssh2 client eagerly parses
-            # `IdentityFile` as private key material and crashes on a
-            # public key file, so this alias is agent-only (no `publicKey`)
-            # and authenticates via 1Password's agent instead of
-            # Secretive's -- but still forwards Secretive's socket (not
-            # 1Password's) below, since that's the one with the signing
-            # key the vm's own git commit signing needs.
-            # Upstream bug: https://github.com/anthropics/claude-code/issues/29717#issuecomment-4321921990
-            "dev-vm-claude" = {
-              hostName = config.sops.placeholder.dev_vm_ip;
-              user = "user";
-              identityAgent = config.gregnix.programs.terminal.tools._1password-cli.sshSocket;
-              remoteForwards = [
-                {
-                  local = secretiveSocket;
-                  remote = secretiveForwardedSocket;
-                }
-              ];
-            };
-
             "github.com" = {
               user = "git";
               identityAgent = secretiveSocket;
