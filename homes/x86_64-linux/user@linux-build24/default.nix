@@ -40,6 +40,7 @@
         zellij.enable = true;
         zoxide.enable = true;
 
+        jk.keyringPassphraseSopsFile = lib.getFile "secrets/work/linux-build24/jk.yaml";
         qodo.tokenSopsFile = lib.getFile "secrets/work/linux-build24/qodo.yaml";
         sonarqube.tokenSopsFile = lib.getFile "secrets/work/linux-build24/sonarqube.yaml";
       };

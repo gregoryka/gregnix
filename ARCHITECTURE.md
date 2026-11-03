@@ -54,7 +54,7 @@ Assessed tools:
 
 - `sonar` (sonarqube-cli 1.11): meets both requirements and has the hardened runtime, but does hand the secret out. It passes the token to its MCP container via `SONARQUBE_TOKEN` in the container runtime's environment, and `sonar config set` can change the proxy, CA certificate and `mcp.container.serverUrl` without authentication. Keychain storage still prevents trivially reading the token, but does not stop a determined same-user process from obtaining it.
 - `gh`: fails 1 (uses `/usr/bin/security`); use SOPS.
-- `jk`: fails 2 (ad-hoc signed); use SOPS.
+- `jk` (0.0.42 upstream release binary): meets both requirements and has the hardened runtime (a Nix source build is ad-hoc signed and fails 2, so the package installs the release binary on macOS). It does hand the secret out: `config.yaml` sets the controller URL, proxy, CA certificate and `insecure` without authentication. jk cannot read its token from the environment, so on Linux it uses its encrypted file store, unlocked by a SOPS-held passphrase.
 
 #### **Token Naming Convention**
 

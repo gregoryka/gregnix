@@ -136,6 +136,10 @@ rec {
     : attrsOf `{ sopsFile :: path; key :: str; }` -- ENV_VAR -> sops
       field, decrypted fresh on every invocation via
       `sops decrypt --extract`.
+
+    `env`
+    : attrsOf str -- ENV_VAR -> fixed, non-secret value, exported
+      before the sops fields. Defaults to `{ }`.
   */
   mkSecretsWrapper =
     {
@@ -143,8 +147,15 @@ rec {
       executable,
       name,
       sopsEnv,
+      env ? { },
     }:
     let
+      envExports = lib.concatStrings (
+        lib.mapAttrsToList (envVar: value: ''
+          export ${lib.toShellVar envVar value}
+        '') env
+      );
+
       sopsExports = lib.concatStrings (
         lib.mapAttrsToList (envVar: secret: ''
           ${envVar}="$(sops decrypt --extract '["${secret.key}"]' "${secret.sopsFile}")"
@@ -156,7 +167,7 @@ rec {
       inherit name;
       runtimeInputs = [ pkgs.sops ];
       text = ''
-        ${sopsExports}
+        ${envExports}${sopsExports}
         exec "${executable}" "$@"
       '';
       meta.mainProgram = name;
