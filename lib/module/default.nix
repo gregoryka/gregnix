@@ -112,14 +112,12 @@ rec {
   /**
     Generic ARCHITECTURE.md-compliant secrets injection: wraps an existing
     executable so that, at invocation time (never at build time), named
-    environment variables are populated either by re-execing once through
-    `op run` against a 1Password reference (primary, for CLI tools) or by
-    decrypting a sops field fresh on every invocation (fallback: "runtime
-    SOPS decryption with Nix managing the wrapper", for hosts without
-    1Password). Both mechanisms only ever expose the *resolved* value to
-    the wrapped process's environment -- never to disk or the Nix store;
-    the op:// references and sops file paths baked into the script are
-    pointers, not secrets. Takes `pkgs` explicitly (for
+    environment variables are populated by decrypting a sops field fresh
+    on every invocation ("runtime SOPS decryption with Nix managing the
+    wrapper"). Only the *resolved* value is ever exposed, and only to the
+    wrapped process's environment -- never to disk or the Nix store; the
+    sops file paths baked into the script point at ciphertext, not
+    secrets. Takes `pkgs` explicitly (for
     `writeShellApplication`/`sops`) since this file is pure `lib`, with no
     instantiated `pkgs` of its own.
 
@@ -134,95 +132,33 @@ rec {
     `name`
     : Name for the resulting wrapper (usually matching the wrapped program).
 
-    `opEnv`
-    : attrsOf str -- ENV_VAR -> op:// reference, injected via a single
-      `op run` re-exec. Defaults to `{ }`.
-
     `sopsEnv`
     : attrsOf `{ sopsFile :: path; key :: str; }` -- ENV_VAR -> sops
       field, decrypted fresh on every invocation via
-      `sops decrypt --extract`. Defaults to `{ }`.
-
-    `noMaskingCommands`
-    : listOf str -- subcommand prefixes (e.g. `[ "auth token" ]`,
-      matched word-for-word against the wrapped command's leading
-      positional args) that legitimately print a secret as their real
-      output -- a credential-helper protocol, a `<tool> token`-style
-      command, etc. -- and therefore need `op run --no-masking` for that
-      invocation specifically. `op run` masks (redacts to `[CONCEALED]`)
-      any injected secret it sees in the wrapped process's stdout/stderr
-      by default; every invocation not matching an entry here keeps that
-      default, so secrets that leak into output some other way (verbose
-      logging, error dumps) still get redacted. Defaults to `[ ]`
-      (always masked).
+      `sops decrypt --extract`.
   */
   mkSecretsWrapper =
     {
       pkgs,
       executable,
       name,
-      opEnv ? { },
-      sopsEnv ? { },
-      noMaskingCommands ? [ ],
+      sopsEnv,
     }:
     let
-      opRunArgs = lib.concatStringsSep " " (
-        lib.mapAttrsToList (envVar: ref: ''"${envVar}=${ref}"'') opEnv
-      );
-
       sopsExports = lib.concatStrings (
         lib.mapAttrsToList (envVar: secret: ''
           ${envVar}="$(sops decrypt --extract '["${secret.key}"]' "${secret.sopsFile}")"
           export ${envVar}
         '') sopsEnv
       );
-
-      # `${1:-}`, `${2:-}`, ... as literal bash text -- built via string
-      # concatenation (not `''${...}` string interpolation escapes) since
-      # the positional index is only known once `lib.imap0` below runs.
-      positional = n: "\${" + toString n + ":-}";
-
-      # One `(( "${1:-}" == "word1" && "${2:-}" == "word2" ))`-style group
-      # per `noMaskingCommands` entry, matching its words against the
-      # wrapped command's leading positional args.
-      argMatch =
-        cmd:
-        "("
-        + lib.concatStringsSep " && " (
-          lib.imap0 (i: word: ''"${positional (i + 1)}" == "${word}"'') (lib.splitString " " cmd)
-        )
-        + ")";
-
-      noMaskingCheck = lib.concatStringsSep " || " (map argMatch noMaskingCommands);
     in
     pkgs.writeShellApplication {
       inherit name;
-      runtimeInputs = lib.optional (sopsEnv != { }) pkgs.sops;
-      text =
-        lib.optionalString (opEnv != { }) ''
-          # 1Password (ARCHITECTURE.md primary for CLI tools): re-exec once
-          # through `op run`, which resolves each op:// reference below to
-          # its real value and injects it only into this process's
-          # environment.
-          if [[ -z "''${_OP_RUN_ACTIVE:-}" ]]; then
-            export _OP_RUN_ACTIVE=1
-            maskingFlag=()
-            ${lib.optionalString (noMaskingCommands != [ ]) ''
-              if [[ ${noMaskingCheck} ]]; then
-                maskingFlag=(--no-masking)
-              fi
-            ''}
-            exec env ${opRunArgs} op run "''${maskingFlag[@]}" -- "$0" "$@"
-          fi
-        ''
-        + lib.optionalString (sopsEnv != { }) ''
-          # ARCHITECTURE.md fallback (1Password unavailable): runtime sops
-          # decryption with Nix managing the wrapper.
-          ${sopsExports}
-        ''
-        + ''
-          exec "${executable}" "$@"
-        '';
+      runtimeInputs = [ pkgs.sops ];
+      text = ''
+        ${sopsExports}
+        exec "${executable}" "$@"
+      '';
       meta.mainProgram = name;
     };
 

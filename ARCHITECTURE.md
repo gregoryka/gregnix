@@ -30,7 +30,7 @@ These include private keys, passwords, and access tokens that grant direct syste
 
 #### **Tools & Enforcement**
 
-- **CLI tools**: 1Password (headless - with service account); if impossible, use runtime SOPS decryption with Nix managing the wrapper.
+- **CLI tools**: Runtime SOPS decryption with Nix managing the wrapper.
 - **Daemons**: Linux - Use systemd-creds with LoadCredential.
 - **Flatpak apps (Linux)**: Use oo7 (or desktop environment's secret service).
 

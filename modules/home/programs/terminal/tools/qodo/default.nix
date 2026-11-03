@@ -19,16 +19,12 @@ let
   # doesn't force building either output.
   mkSkillEntries = dir: lib.genAttrs pkgs.gregnix.qodo-cli-skills.skillNames (name: "${dir}/${name}");
 
-  needsWrapper = cfg.sdkUrlSopsFile != null || cfg.tokenRef != null || cfg.tokenSopsFile != null;
+  needsWrapper = cfg.sdkUrlSopsFile != null || cfg.tokenSopsFile != null;
 
   qodoWrapped = mkSecretsWrapper {
     inherit pkgs;
     name = "qodo";
     executable = lib.getExe pkgs.gregnix.qodo-cli;
-
-    opEnv = lib.optionalAttrs (cfg.tokenRef != null) {
-      QODO_API_KEY = cfg.tokenRef;
-    };
 
     sopsEnv =
       lib.optionalAttrs (cfg.sdkUrlSopsFile != null) {
@@ -68,19 +64,12 @@ in
 
     sdkUrlSopsKey = mkOpt types.str "qodo_sdk_url" "Key within `sdkUrlSopsFile` holding the URL.";
 
-    tokenRef = mkOpt (types.nullOr types.str) null ''
-      1Password reference (e.g. `op://Vault/item/field`) for the Qodo API
-      token. ARCHITECTURE.md's primary mechanism for CLI tool credentials:
-      injected into the process environment via `op run` at invocation
-      time, never written to disk or the Nix store.
-    '';
-
     tokenSopsFile = mkOpt (types.nullOr types.path) null ''
       Path to a sops-encrypted file holding the Qodo API token (see
-      `tokenSopsKey`), for hosts without 1Password available.
-      ARCHITECTURE.md's fallback: runtime sops decryption with Nix
-      managing the wrapper. Set at most one of `tokenRef`/`tokenSopsFile`
-      per host.
+      `tokenSopsKey`). ARCHITECTURE.md's mechanism for CLI tool
+      credentials: runtime sops decryption with Nix managing the wrapper,
+      injected into the process environment at invocation time, never
+      written to disk or the Nix store.
     '';
 
     tokenSopsKey = mkOpt types.str "qodo_token" "Key within `tokenSopsFile` holding the token.";

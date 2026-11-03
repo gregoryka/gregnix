@@ -34,13 +34,14 @@ in
         fd.enable = true;
         fzf.enable = true;
         gh = {
-          tokenRef = "op://Employee/global-github-cli-pat/credential";
-          enterpriseTokenRef = "op://Employee/global-ghe-cli-pat/credential";
+          tokenSopsFile = lib.getFile "secrets/work/gregory-m4-pro-mac/gh.yaml";
+          enterpriseTokenSopsFile = lib.getFile "secrets/work/gregory-m4-pro-mac/gh.yaml";
         };
         git.enable = true;
         lazygit.enable = true;
         nh.enable = true;
         podman.enable = true;
+        qodo.tokenSopsFile = lib.getFile "secrets/work/gregory-m4-pro-mac/qodo.yaml";
         ripgrep.enable = true;
         ssh = {
           enable = true;
