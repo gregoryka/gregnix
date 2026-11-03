@@ -48,21 +48,10 @@ pkgs.mkShellNoCC {
   shellHook = ''
     export NIX_HARDENING_ENABLE="${hardeningFlags}"
 
-    echo "⚙️  S1 DevShell"
-    echo ""
-    echo "📦 Available packages:"
-    ${lib.concatMapStringsSep "\n" (
-      pkg: ''echo "  - ${pkg.pname or pkg.name or "unknown"} (${pkg.version or "unknown"})"''
-    ) packages}
-    echo ""
-    echo "💡 C/C++ (clang 22 + libstdc++15) and Rust toolchain for S1"
 
     if [[ -f "${artifactoryTokenPath}" ]]; then
       ART_TOKEN="$(cat "${artifactoryTokenPath}")"
       export ART_TOKEN
-      echo "🔑 ART_TOKEN loaded"
-    else
-      echo "⚠️  No artifactory token at ${artifactoryTokenPath} (run 'home-manager switch' first)"
     fi
   '';
 }
