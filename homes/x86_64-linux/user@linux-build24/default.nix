@@ -13,6 +13,7 @@
       tools = {
         atuin.enable = true;
         bat.enable = true;
+        btop.enable = true;
         direnv.enable = true;
         eza.enable = true;
         fd.enable = true;
