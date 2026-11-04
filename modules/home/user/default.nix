@@ -183,6 +183,11 @@ in
           grep = "${getExe pkgs.gnugrep} --color=auto";
           vdir = "${getExe' pkgs.coreutils "vdir"} --color=auto";
 
+          # macOS's /usr/bin/top is setuid root, so ncurses ignores
+          # TERMINFO/TERMINFO_DIRS and only reads /usr/share/terminfo (SIP
+          # read-only), which lacks xterm-ghostty/xterm-kitty.
+          top = mkIf pkgs.stdenv.hostPlatform.isDarwin "TERM=xterm-256color top";
+
           # Misc
           clear = "clear && ${getExe config.programs.fastfetch.package}";
           clr = "clear";
