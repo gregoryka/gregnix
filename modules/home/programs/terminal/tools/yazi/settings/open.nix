@@ -19,6 +19,7 @@
         "msi"
         "pkg"
         "rar"
+        "rpm"
         "shar"
         "tar"
         "tgz"
