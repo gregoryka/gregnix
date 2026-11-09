@@ -104,6 +104,9 @@ in
       )
     ];
 
+    gregnix.programs.terminal.tools.claude-code.skills.jk = "${package}/share/jk/skills/jk";
+    gregnix.programs.terminal.tools.devin.skills.jk = "${package}/share/jk/skills/jk";
+
     # `jk auth login` atomically replaces this symlink with a plain on-disk
     # copy (the token itself goes to the keychain, not this file);
     # sops-install-secrets removes that copy and restores the symlink on

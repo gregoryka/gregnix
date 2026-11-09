@@ -33,6 +33,13 @@ let
       --zsh <($out/bin/jk completion zsh)
   '';
 
+  # Upstream's agent skill, shipped in both the release tarball and the
+  # source tree.
+  installSkill = ''
+    mkdir -p "$out/share/jk/skills"
+    cp -r skills/jk "$out/share/jk/skills/"
+  '';
+
   meta = {
     description = "GitHub-style CLI for Jenkins";
     homepage = "https://github.com/avivsinai/jenkins-cli";
@@ -65,6 +72,7 @@ let
         runHook preInstall
         install -Dm0755 jk "$out/bin/jk"
         ${installCompletions}
+        ${installSkill}
         runHook postInstall
       '';
 
@@ -96,7 +104,9 @@ let
       "-X github.com/avivsinai/jenkins-cli/internal/build.versionFromLdflags=${version}"
     ];
 
-    postInstall = lib.optionalString (stdenvNoCC.buildPlatform.canExecute stdenvNoCC.hostPlatform) installCompletions;
+    postInstall =
+      lib.optionalString (stdenvNoCC.buildPlatform.canExecute stdenvNoCC.hostPlatform) installCompletions
+      + installSkill;
 
     inherit meta;
   };
