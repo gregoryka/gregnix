@@ -1,47 +1,39 @@
 {
   stdenv,
   lib,
+  fetchurl,
+  jq,
   qodo-cli,
   ...
 }:
 let
-  # Kept in sync manually with the actual bundle (run `qodo skills list`
-  # after bumping the version pin in ../qodo-cli/package.nix and update
-  # this list if it changed) rather than discovered via `builtins.readDir`
-  # on the built output: that would be import-from-derivation, forcing a
-  # build during evaluation just to answer e.g. "is qodo enabled?" --
-  # which also breaks cross-system eval (an aarch64-darwin machine can't
-  # build the x86_64-linux derivation just to list its contents).
-  # Consumers (claude-code/devin tool modules) get this from
-  # `passthru.skillNames` so it's declared once, alongside the package
-  # that actually produces the matching directories.
+  # Hardcoded rather than read from the build output, which would be
+  # import-from-derivation (and break cross-system eval). The build fails
+  # if this drifts from the bundle.
   skillNames = [
     "qodo-codebase-wisdom"
     "qodo-get-rules"
     "qodo-manage-standards"
     "qodo-review"
+    "qodo-review-notes"
     "qodo-review-resolver"
+    "qodo-setup"
   ];
+
+  # `skills.releaseTag` in https://get.qodo.ai/version.json.
+  version = "2.1.11";
 in
-# Qodo's agent skills aren't shipped as loose files in the release artifact
-# -- they're bundled as string literals inside qodo.mjs and only ever
-# materialize on disk via `qodo skills install`. That subcommand is itself
-# fully offline (verified: no network call, no login -- it just detects
-# `~/.claude`/`~/.config/devin` and writes the bundled markdown into them),
-# so running it once here at build time, into a throwaway $HOME, turns the
-# bundle's skills into normal Nix-built directories -- one subdirectory per
-# skill (named per `skillNames` above) -- that the gregnix claude-code/devin
-# tool modules consume directly by name. Content is identical between the
-# two outputs (verified: `diff -rq` on a built pair is empty) -- only the
-# destination directory differs, so one `skills install` run covers both.
-# `out` is required as an output name -- without it, stdenv's
-# multiple-outputs setup hook fails looking for a `dev`/`out` output to
-# assign its own bookkeeping variable to -- but is otherwise unused; always
-# reference `.claudeCode`/`.devin` explicitly rather than the implicit
-# default output.
+# Decodes the same checksummed bundle `qodo skills install` downloads and
+# writes verbatim, since that command requires `qodo login`.
+# `out` is unused but required by stdenv's multiple-outputs hook.
 stdenv.mkDerivation {
   pname = "qodo-cli-skills";
-  inherit (qodo-cli) version;
+  inherit version;
+
+  src = fetchurl {
+    url = "https://get.qodo.ai/skills/releases/v${version}/qodo-cli-managed-bundle.json";
+    hash = "sha256-EN6+vcGSHHsVrdzhUt03lDwEeBy9F7qTPOveGobk2+4=";
+  };
 
   outputs = [
     "out"
@@ -49,24 +41,22 @@ stdenv.mkDerivation {
     "devin"
   ];
 
-  # Space-separated for the buildPhase's drift check below; every top-level
-  # attribute here becomes a build-time env var.
   expectedSkillNames = lib.concatStringsSep " " skillNames;
+  cliVersion = qodo-cli.version;
 
   dontUnpack = true;
+  nativeBuildInputs = [ jq ];
 
   buildPhase = ''
     runHook preBuild
 
-    export HOME="$TMPDIR/home"
-    mkdir -p "$HOME/.claude" "$HOME/.config/devin"
-    "${lib.getExe qodo-cli}" skills install --agent claude-code,devin --global
+    minCli="$(jq -r .minimumCliVersion "$src")"
+    if ! printf '%s\n%s\n' "$minCli" "$cliVersion" | sort -V -C; then
+      echo "qodo-cli-skills: bundle requires qodo-cli >= $minCli, have $cliVersion" >&2
+      exit 1
+    fi
 
-    # Catch drift between the hardcoded `skillNames` above and what
-    # upstream actually bundled -- loudly, at build time, rather than
-    # silently missing a renamed/added skill or failing obscurely later
-    # when a tool module references a name that doesn't exist.
-    actual="$(ls "$HOME/.claude/skills" | sort)"
+    actual="$(jq -r '.skills | keys[]' "$src" | sort)"
     expected="$(printf '%s\n' $expectedSkillNames | sort)"
     if [ "$actual" != "$expected" ]; then
       echo "qodo-cli-skills: bundled skill names no longer match the hardcoded" >&2
@@ -76,20 +66,37 @@ stdenv.mkDerivation {
       exit 1
     fi
 
+    mkdir skills
+    jq -r '.skills | to_entries[] | .key as $skill | .value.files[]
+      | [$skill, .path, .sha256, .encoding, .content] | @tsv' "$src" |
+      while IFS=$'\t' read -r skill path sha encoding content; do
+        case "/$path/" in
+          *//* | */./* | */../*)
+            echo "qodo-cli-skills: unsafe path $skill/$path" >&2
+            exit 1
+            ;;
+        esac
+        [ "$encoding" = base64 ] || { echo "qodo-cli-skills: unknown encoding $encoding" >&2; exit 1; }
+        dest="skills/$skill/$path"
+        mkdir -p "$(dirname "$dest")"
+        printf '%s' "$content" | base64 -d > "$dest"
+        echo "$sha  $dest" | sha256sum -c --quiet
+      done
+
     runHook postBuild
   '';
 
   installPhase = ''
     runHook preInstall
     touch "$out"
-    cp -r "$HOME/.claude/skills" "$claudeCode"
-    cp -r "$HOME/.config/devin/skills" "$devin"
+    cp -r skills "$claudeCode"
+    cp -r skills "$devin"
     runHook postInstall
   '';
 
   passthru = { inherit skillNames; };
 
   meta = {
-    description = "Qodo's bundled agent skills, extracted from qodo-cli at build time (one output per supported coding agent)";
+    description = "Qodo's agent skills, from the pinned CLI-managed skills bundle (one output per supported coding agent)";
   };
 }
