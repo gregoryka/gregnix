@@ -13,22 +13,16 @@ let
 
   package = pkgs.gregnix.jk;
 
-  needsWrapper = cfg.keyringPassphraseSopsFile != null;
+  needsWrapper = cfg.tokenSopsFile != null;
 
-  # jk has no environment variable for the API token itself, only for the
-  # passphrase of its encrypted file store -- so on hosts without an OS
-  # keyring the token lives in that store, unlocked by a sops-held
-  # passphrase on every invocation.
   jkWrapped = mkSecretsWrapper {
     inherit pkgs;
     name = "jk";
     executable = lib.getExe package;
 
-    env.JK_ALLOW_INSECURE_STORE = "1";
-
-    sopsEnv.JK_KEYRING_PASSPHRASE = {
-      sopsFile = cfg.keyringPassphraseSopsFile;
-      key = cfg.keyringPassphraseSopsKey;
+    sopsEnv.JK_TOKEN = {
+      sopsFile = cfg.tokenSopsFile;
+      key = cfg.tokenSopsKey;
     };
   };
 
@@ -57,36 +51,26 @@ in
     contexts = mkOpt (types.attrsOf contextType) { } ''
       jk contexts, rendered into jk's `config.yaml` via a sops template
       (RAM-backed, never the Nix store). API tokens are *not* configured
-      here: jk only reads them from its secret store (the OS keychain,
-      or the encrypted file store with `keyringPassphraseSopsFile`),
-      keyed by context name -- store one with `jk auth login <url>
+      here: see `tokenSopsFile`, or store one in jk's secret store (the OS
+      keychain), keyed by context name, with `jk auth login <url>
       --name <context> --username <user> --with-token` (token on stdin).
     '';
 
     activeContext = mkOpt (types.nullOr types.str) null "Context selected by default.";
 
-    keyringPassphraseSopsFile = mkOpt (types.nullOr types.path) null ''
-      Path to a sops-encrypted file holding the passphrase for jk's
-      encrypted file store (see `keyringPassphraseSopsKey`), exported as
-      `JK_KEYRING_PASSPHRASE` alongside `JK_ALLOW_INSECURE_STORE=1` by a
-      wrapper, decrypted fresh on every invocation. Linux-only, for hosts
-      without an OS keyring; on Darwin jk keeps the token in its own
-      Keychain item instead.
+    tokenSopsFile = mkOpt (types.nullOr types.path) null ''
+      Path to a sops-encrypted file holding a Jenkins API token (see
+      `tokenSopsKey`), exported as `JK_TOKEN` by a wrapper, decrypted fresh
+      on every invocation. jk uses it for the selected context (`--context`,
+      `JK_CONTEXT` or `activeContext`) without opening its secret store.
+      For hosts without an OS keyring; leave `null` on Darwin, where jk
+      keeps the token in its own Keychain item.
     '';
 
-    keyringPassphraseSopsKey =
-      mkOpt types.str "jk_keyring_passphrase"
-        "Key within `keyringPassphraseSopsFile` holding the passphrase.";
+    tokenSopsKey = mkOpt types.str "jk_token" "Key within `tokenSopsFile` holding the token.";
   };
 
   config = mkIf cfg.enable {
-    assertions = [
-      {
-        assertion = !(pkgs.stdenv.hostPlatform.isDarwin && needsWrapper);
-        message = "gregnix.programs.terminal.tools.jk.keyringPassphraseSopsFile is Linux-only; on Darwin jk uses its Keychain item.";
-      }
-    ];
-
     # The wrapper comes first so its `bin/jk` wins; `package` still
     # contributes the shell completions.
     home.packages = [
