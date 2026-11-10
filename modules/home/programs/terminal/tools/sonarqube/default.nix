@@ -12,6 +12,7 @@ let
   cfg = config.gregnix.programs.terminal.tools.sonarqube;
 
   package = pkgs.gregnix.sonarqube-cli;
+  secrets = pkgs.gregnix.sonar-secrets;
 
   # The CLI only honours `SONARQUBE_CLI_SERVER` when paired with
   # `SONARQUBE_CLI_TOKEN` (otherwise it falls back to the keychain
@@ -86,8 +87,14 @@ in
   config = mkIf cfg.enable {
     home.packages = [ (if needsWrapper then sonarWrapped else package) ];
 
-    home.file.".sonar/sonarqube-cli/cli-config.properties" = mkIf (cfg.settings != { }) {
-      text = lib.generators.toKeyValue { } cfg.settings;
+    home.file = {
+      ".sonar/sonarqube-cli/cli-config.properties" = mkIf (cfg.settings != { }) {
+        text = lib.generators.toKeyValue { } cfg.settings;
+      };
+
+      ".sonar/sonarqube-cli/bin/${secrets.cliBinaryName}" =
+        mkIf (lib.meta.availableOn pkgs.stdenv.hostPlatform secrets)
+          { source = lib.getExe secrets; };
     };
   };
 }
