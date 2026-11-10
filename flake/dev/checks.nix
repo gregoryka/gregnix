@@ -51,6 +51,8 @@
                 "flake.lock"
                 "secrets/**"
                 ".sops.yaml"
+                # Armored PGP keys
+                "*.asc"
               ];
             };
           };
