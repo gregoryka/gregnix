@@ -65,9 +65,27 @@ in
     '';
 
     tokenSopsKey = mkOpt types.str "sonarqube_token" "Key within `tokenSopsFile` holding the token.";
+
+    settings =
+      mkOpt (types.attrsOf (types.either types.bool types.str))
+        {
+          "telemetry.enabled" = false;
+          "stats.enabled" = false;
+        }
+        ''
+          CLI settings written to `~/.sonar/sonarqube-cli/cli-config.properties`
+          (what `sonar config set` would otherwise manage). The file is a
+          read-only store link, so `sonar config set` fails while this is
+          non-empty. Defaults opt out of usage telemetry sent to SonarSource
+          and of the local per-scan stats ledger.
+        '';
   };
 
   config = mkIf cfg.enable {
     home.packages = [ (if needsWrapper then sonarWrapped else pkgs.sonarqube-cli) ];
+
+    home.file.".sonar/sonarqube-cli/cli-config.properties" = mkIf (cfg.settings != { }) {
+      text = lib.generators.toKeyValue { } cfg.settings;
+    };
   };
 }
