@@ -40,6 +40,17 @@ let
       };
     };
   };
+
+  # The hooks authenticate like any other command (they block without a
+  # connection), so they run through the same wrapper.
+  sonar = if needsWrapper then sonarWrapped else package;
+
+  mkSecretsHook = event: matcher: subcommand: {
+    inherit event matcher;
+    command = "${lib.getExe sonar} hook ${subcommand}";
+    timeout = 60;
+    replaces = [ "sonar-secrets" ];
+  };
 in
 {
   options.gregnix.programs.terminal.tools.sonarqube = {
@@ -85,7 +96,19 @@ in
   };
 
   config = mkIf cfg.enable {
-    home.packages = [ (if needsWrapper then sonarWrapped else package) ];
+    home.packages = [ sonar ];
+
+    # The hooks `sonar integrate` would install, minus the
+    # `command -v sonar || exit 0` guard of its scripts. `replaces` drops
+    # that command's own entries, should it ever be run.
+    gregnix.programs.terminal.tools.claude-code.hooks = {
+      sonar-secrets-pre-tool-use = mkSecretsHook "PreToolUse" "Read" "claude-pre-tool-use";
+      sonar-secrets-prompt-submit = mkSecretsHook "UserPromptSubmit" "*" "claude-prompt-submit";
+    };
+    gregnix.programs.terminal.tools.devin.hooks = {
+      sonar-secrets-pre-tool-use = mkSecretsHook "PreToolUse" "^read$" "devin-pre-tool-use";
+      sonar-secrets-prompt-submit = mkSecretsHook "UserPromptSubmit" "" "devin-prompt-submit";
+    };
 
     home.file = {
       ".sonar/sonarqube-cli/cli-config.properties" = mkIf (cfg.settings != { }) {
