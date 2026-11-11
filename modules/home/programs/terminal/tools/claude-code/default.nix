@@ -13,6 +13,8 @@ let
     types
     ;
 
+  inherit (lib.gregnix) mkAgentHooksMerge mkAgentHooksOption;
+
   cfg = config.gregnix.programs.terminal.tools.claude-code;
 in
 {
@@ -43,9 +45,32 @@ in
         `programs.claude-code.skills` directly.
       '';
     };
+
+    hooks = mkAgentHooksOption ''
+      Command hooks merged into `settings.json` on each activation. Not
+      `programs.claude-code.settings.hooks`: that makes the whole file a
+      read-only store link, while Claude Code, its plugin installs and any
+      other tools all write to it at runtime.
+    '';
   };
 
   config = mkIf cfg.enable {
+    home.activation.claudeCodeHooks = lib.hm.dag.entryAfter [ "linkGeneration" ] (
+      lib.hm.generators.mkImpureConfigMerger (
+        {
+          inherit pkgs;
+          format = "json";
+          empty = "{}";
+          mode = "600";
+          path = "${config.programs.claude-code.configDir}/settings.json";
+        }
+        // mkAgentHooksMerge {
+          inherit pkgs;
+          inherit (cfg) hooks;
+        }
+      )
+    );
+
     # `package = null`: manage config/skills files only, not the `claude`
     # binary itself (installed separately via the Homebrew cask -- see
     # modules/darwin/archetypes/work).

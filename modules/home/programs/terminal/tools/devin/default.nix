@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pkgs,
 
   ...
 }:
@@ -11,6 +12,7 @@ let
     mkOption
     types
     ;
+  inherit (lib.gregnix) mkAgentHooksMerge mkAgentHooksOption;
 
   cfg = config.gregnix.programs.terminal.tools.devin;
 in
@@ -34,9 +36,31 @@ in
         that directory directly.
       '';
     };
+
+    hooks = mkAgentHooksOption ''
+      Command hooks merged into `~/.config/devin/config.json` on each
+      activation (Devin ignores a global `hooks.v1.json`). The file stays
+      writable: Devin itself and other tools write to it at runtime.
+    '';
   };
 
   config = mkIf cfg.enable {
+    home.activation.devinHooks = lib.hm.dag.entryAfter [ "linkGeneration" ] (
+      lib.hm.generators.mkImpureConfigMerger (
+        {
+          inherit pkgs;
+          format = "json";
+          empty = "{}";
+          mode = "600";
+          path = "${config.home.homeDirectory}/.config/devin/config.json";
+        }
+        // mkAgentHooksMerge {
+          inherit pkgs;
+          inherit (cfg) hooks;
+        }
+      )
+    );
+
     home.file = lib.mapAttrs' (
       name: dir:
       lib.nameValuePair ".config/devin/skills/${name}" {

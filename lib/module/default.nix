@@ -174,6 +174,90 @@ rec {
     };
 
   /**
+    Option for command hooks merged into an agent's writable JSON config
+    (Claude Code's `settings.json`, Devin's `config.json`), keyed by a
+    name that tool modules contribute to independently.
+
+    # Inputs
+
+    `description`
+    : Option description.
+  */
+  mkAgentHooksOption =
+    description:
+    mkOption {
+      type = types.attrsOf (
+        types.submodule {
+          options = {
+            event = mkOption {
+              type = types.str;
+              description = "Hook event, e.g. `PreToolUse` or `UserPromptSubmit`.";
+            };
+            matcher = mkOpt (types.nullOr types.str) null "Tool-name matcher; `null` omits it.";
+            command = mkOption {
+              type = types.str;
+              description = "Shell command the hook runs, receiving the event JSON on stdin.";
+            };
+            timeout = mkOpt (types.nullOr types.ints.positive) null "Timeout in seconds.";
+            replaces = mkOpt (types.listOf types.str) [ ] ''
+              Substrings identifying hook commands installed outside Nix
+              (e.g. by `sonar integrate`) that this hook supersedes; those
+              entries are removed on each activation.
+            '';
+          };
+        }
+      );
+      default = { };
+      inherit description;
+    };
+
+  /**
+    `staticSettings`/`jqOperation` for `lib.hm.generators.mkImpureConfigMerger`
+    that replace an agent config's Nix-managed hooks with `hooks` (from
+    `mkAgentHooksOption`), keeping every other key and hook. Each hook
+    runs through a store script named `gregnix-agent-hook-<name>`, which
+    is how later activations recognise (and drop) entries from earlier
+    generations -- including ones whose declaration has since been removed.
+
+    # Inputs
+
+    `pkgs`
+    : nixpkgs instance, for `writeShellScript` and `formats.json`.
+
+    `hooks`
+    : Value of an option created by `mkAgentHooksOption`.
+  */
+  mkAgentHooksMerge =
+    { pkgs, hooks }:
+    let
+      mkGroup =
+        name: hook:
+        lib.optionalAttrs (hook.matcher != null) { inherit (hook) matcher; }
+        // {
+          hooks = [
+            (
+              {
+                type = "command";
+                command = "${pkgs.writeShellScript "gregnix-agent-hook-${name}" "exec ${hook.command}"}";
+              }
+              // lib.optionalAttrs (hook.timeout != null) { inherit (hook) timeout; }
+            )
+          ];
+        };
+    in
+    {
+      staticSettings = (pkgs.formats.json { }).generate "agent-hooks.json" {
+        markers = lib.unique (
+          [ "-gregnix-agent-hook-" ] ++ lib.concatMap (hook: hook.replaces) (lib.attrValues hooks)
+        );
+        hooks = lib.zipAttrs (
+          lib.mapAttrsToList (name: hook: { ${hook.event} = mkGroup name hook; }) hooks
+        );
+      };
+      jqOperation = builtins.readFile ./agent-hooks-merge.jq;
+    };
+
+  /**
     Create a boolean nixpkgs option without a description.
 
     # Inputs
