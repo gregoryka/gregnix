@@ -54,5 +54,7 @@
     system.xdg.enable = true;
   };
 
+  home.sessionPath = [ "$HOME/.local/bin" ];
+
   home.stateVersion = "26.05";
 }
