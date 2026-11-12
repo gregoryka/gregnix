@@ -10,8 +10,9 @@ regex = '''[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'''
 tags = ["pii", "email"]
 
 [allowlist]
-description = "Known-safe placeholders and noreply addresses that aren't real personal emails"
+description = "Known-safe placeholders, noreply addresses and ssh remotes that aren't real personal emails"
 regexes = [
   '''noreply\.github\.com''',
   '''@example\.com''',
+  '''^git@github\.com$''',
 ]
