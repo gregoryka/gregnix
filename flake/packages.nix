@@ -11,6 +11,7 @@
             "1password-cli"
             "qodo-cli"
             "sonar-secrets"
+            "sonarqube-agent-plugins"
             "sonarqube-cli"
           ];
       };

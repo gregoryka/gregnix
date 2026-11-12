@@ -13,6 +13,12 @@ let
 
   package = pkgs.gregnix.sonarqube-cli;
   secrets = pkgs.gregnix.sonar-secrets;
+  agentPlugins = pkgs.gregnix.sonarqube-agent-plugins;
+
+  agentPluginFiles =
+    kind: names: suffix:
+    lib.genAttrs names (name: "${agentPlugins}/share/sonarqube-agent-plugins/${kind}/${name}${suffix}");
+  agentSkills = agentPluginFiles "skills" agentPlugins.skillNames "";
 
   # The CLI only honours `SONARQUBE_CLI_SERVER` when paired with
   # `SONARQUBE_CLI_TOKEN` (otherwise it falls back to the keychain
@@ -98,16 +104,26 @@ in
   config = mkIf cfg.enable {
     home.packages = [ sonar ];
 
-    # The hooks `sonar integrate` would install, minus the
-    # `command -v sonar || exit 0` guard of its scripts. `replaces` drops
-    # that command's own entries, should it ever be run.
-    gregnix.programs.terminal.tools.claude-code.hooks = {
-      sonar-secrets-pre-tool-use = mkSecretsHook "PreToolUse" "Read" "claude-pre-tool-use";
-      sonar-secrets-prompt-submit = mkSecretsHook "UserPromptSubmit" "*" "claude-prompt-submit";
-    };
-    gregnix.programs.terminal.tools.devin.hooks = {
-      sonar-secrets-pre-tool-use = mkSecretsHook "PreToolUse" "^read$" "devin-pre-tool-use";
-      sonar-secrets-prompt-submit = mkSecretsHook "UserPromptSubmit" "" "devin-prompt-submit";
+    gregnix.programs.terminal.tools = {
+      claude-code = {
+        skills = agentSkills;
+        agents = agentPluginFiles "agents" agentPlugins.agentNames ".md";
+        # The hooks `sonar integrate` would install, minus the
+        # `command -v sonar || exit 0` guard of its scripts. `replaces` drops
+        # that command's own entries, should it ever be run.
+        hooks = {
+          sonar-secrets-pre-tool-use = mkSecretsHook "PreToolUse" "Read" "claude-pre-tool-use";
+          sonar-secrets-prompt-submit = mkSecretsHook "UserPromptSubmit" "*" "claude-prompt-submit";
+        };
+      };
+      devin = {
+        skills = agentSkills;
+        agents = agentPluginFiles "devin/agents" agentPlugins.agentNames ".md";
+        hooks = {
+          sonar-secrets-pre-tool-use = mkSecretsHook "PreToolUse" "^read$" "devin-pre-tool-use";
+          sonar-secrets-prompt-submit = mkSecretsHook "UserPromptSubmit" "" "devin-prompt-submit";
+        };
+      };
     };
 
     home.file = {
