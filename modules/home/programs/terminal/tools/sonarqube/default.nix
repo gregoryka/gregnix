@@ -57,6 +57,23 @@ let
     timeout = 60;
     replaces = [ "sonar-secrets" ];
   };
+
+  # Scripts rather than command lines: git appends its hook arguments to
+  # a command line, which `sonar hook git-pre-push` would scan as files.
+  gitHooks = {
+    sonar-secrets-pre-commit = {
+      event = "pre-commit";
+      command = "${pkgs.writeShellScript "sonar-secrets-pre-commit" ''
+        exec ${lib.getExe sonar} hook git-pre-commit
+      ''}";
+    };
+    sonar-secrets-pre-push = {
+      event = "pre-push";
+      command = "${pkgs.writeShellScript "sonar-secrets-pre-push" ''
+        SONAR_PRE_PUSH_REMOTE_NAME="$1" exec ${lib.getExe sonar} hook git-pre-push
+      ''}";
+    };
+  };
 in
 {
   options.gregnix.programs.terminal.tools.sonarqube = {
@@ -85,6 +102,14 @@ in
     '';
 
     tokenSopsKey = mkOpt types.str "sonarqube_token" "Key within `tokenSopsFile` holding the token.";
+
+    gitHookIdentities = mkOpt (types.listOf types.str) [ ] ''
+      Names of `gregnix.programs.terminal.tools.git.identities` whose
+      repositories get Sonar's secrets scan as config-defined `pre-commit`
+      and `pre-push` hooks. They run before the repository's own hooks,
+      which keep working; `git config hook.sonar-secrets-pre-commit.enabled
+      false` turns one off in a single repository.
+    '';
 
     settings =
       mkOpt (types.attrsOf (types.either types.bool types.str))
@@ -124,6 +149,9 @@ in
           sonar-secrets-prompt-submit = mkSecretsHook "UserPromptSubmit" "" "devin-prompt-submit";
         };
       };
+      git.identities = lib.genAttrs cfg.gitHookIdentities (_: {
+        settings.hook = gitHooks;
+      });
     };
 
     home.file = {

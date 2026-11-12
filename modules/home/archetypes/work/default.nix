@@ -94,6 +94,7 @@ in
     gregnix.programs.terminal.tools.sonarqube = {
       enable = true;
       serverUrlSopsFile = sonarqubeSecretsFile;
+      gitHookIdentities = [ "ghe" ];
     };
 
     gregnix.programs.terminal.tools.jk = {
