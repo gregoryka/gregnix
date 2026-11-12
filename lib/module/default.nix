@@ -133,9 +133,12 @@ rec {
     : Name for the resulting wrapper (usually matching the wrapped program).
 
     `sopsEnv`
-    : attrsOf `{ sopsFile :: path; key :: str; }` -- ENV_VAR -> sops
-      field, decrypted fresh on every invocation via
-      `sops decrypt --extract`.
+    : attrsOf `{ sopsFile :: path; key :: str; when :: str? }` -- ENV_VAR
+      -> sops field, decrypted fresh on every invocation via
+      `sops decrypt --extract`. A list of these picks one per invocation:
+      the first whose `when` (a command, run with the wrapped program's
+      arguments appended) exits 0, or that has no `when`. The variable is
+      left unset if none does.
 
     `env`
     : attrsOf str -- ENV_VAR -> fixed, non-secret value, exported
@@ -157,10 +160,34 @@ rec {
       );
 
       sopsExports = lib.concatStrings (
-        lib.mapAttrsToList (envVar: secret: ''
-          ${envVar}="$(sops decrypt --extract '["${secret.key}"]' "${secret.sopsFile}")"
-          export ${envVar}
-        '') sopsEnv
+        lib.mapAttrsToList (
+          envVar: secrets:
+          let
+            exportSecret = secret: ''
+              ${envVar}="$(sops decrypt --extract '["${secret.key}"]' "${secret.sopsFile}")"
+              export ${envVar}
+            '';
+
+            # if/elif/else chain up to the first candidate without `when`.
+            chain =
+              first: candidates:
+              if candidates == [ ] then
+                lib.optionalString (!first) "fi\n"
+              else
+                let
+                  secret = lib.head candidates;
+                in
+                if secret.when or null == null then
+                  if first then exportSecret secret else "else\n" + exportSecret secret + "fi\n"
+                else
+                  ''
+                    ${if first then "if" else "elif"} ${secret.when} "$@"; then
+                  ''
+                  + exportSecret secret
+                  + chain false (lib.tail candidates);
+          in
+          chain true (lib.toList secrets)
+        ) sopsEnv
       );
     in
     pkgs.writeShellApplication {
