@@ -37,6 +37,16 @@ in
       '';
     };
 
+    agents = mkOption {
+      type = types.attrsOf types.path;
+      default = { };
+      description = ''
+        Custom subagent definition files to place at
+        `~/.config/devin/agents/<name>.md`, keyed by agent name. Other tool
+        modules contribute here, like `skills`.
+      '';
+    };
+
     hooks = mkAgentHooksOption ''
       Command hooks merged into `~/.config/devin/config.json` on each
       activation (Devin ignores a global `hooks.v1.json`). The file stays
@@ -61,12 +71,16 @@ in
       )
     );
 
-    home.file = lib.mapAttrs' (
-      name: dir:
-      lib.nameValuePair ".config/devin/skills/${name}" {
-        source = dir;
-        recursive = true;
-      }
-    ) cfg.skills;
+    home.file =
+      lib.mapAttrs' (
+        name: dir:
+        lib.nameValuePair ".config/devin/skills/${name}" {
+          source = dir;
+          recursive = true;
+        }
+      ) cfg.skills
+      // lib.mapAttrs' (
+        name: file: lib.nameValuePair ".config/devin/agents/${name}.md" { source = file; }
+      ) cfg.agents;
   };
 }

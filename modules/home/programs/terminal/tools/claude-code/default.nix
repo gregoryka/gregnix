@@ -46,6 +46,16 @@ in
       '';
     };
 
+    agents = mkOption {
+      type = types.attrsOf types.path;
+      default = { };
+      description = ''
+        Subagent definition files to expose via `programs.claude-code.agents`,
+        keyed by agent name (renders to `''${configDir}/agents/<name>.md`).
+        Other tool modules contribute entries here, like `skills`.
+      '';
+    };
+
     hooks = mkAgentHooksOption ''
       Command hooks merged into `settings.json` on each activation. Not
       `programs.claude-code.settings.hooks`: that makes the whole file a
@@ -85,6 +95,7 @@ in
       enable = true;
       package = null;
       skills = mkIf (cfg.skills != { }) cfg.skills;
+      inherit (cfg) agents;
 
       lspServers.nix = {
         command = "${pkgs.nixd}/bin/nixd";
