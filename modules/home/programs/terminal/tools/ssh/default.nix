@@ -38,6 +38,7 @@ let
       host.publicKey != ""
     ) "  IdentityFile \"${config.xdg.configHome}/ssh/${name}.pub\""}
     ${optionalString host.identitiesOnly "  IdentitiesOnly yes"}
+    ${optionalString (host.controlPath != null) "  ControlPath ${host.controlPath}"}
     ${concatMapStringsSep "\n" (
       fwd: "  RemoteForward \"${fwd.remote}\" \"${fwd.local}\""
     ) host.remoteForwards}
@@ -116,6 +117,14 @@ in
                 (`IdentitiesOnly yes`) -- e.g. so a host with a strict
                 auth-attempt limit (like github.com) isn't offered every
                 other key loaded into the same agent.
+              '';
+
+              controlPath = mkOpt (types.nullOr types.str) null ''
+                Optional `ControlPath` override. The default socket name
+                hashes the resolved `HostName`, so two aliases for the same
+                host that authenticate as different users (e.g. two GitHub
+                accounts) would otherwise share one multiplexed connection
+                -- and whichever key opened it.
               '';
 
               remoteForwards =
