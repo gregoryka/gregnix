@@ -61,6 +61,10 @@ in
             `user.signingKey` (prefixed with `key::`) and for this
             identity's line in the shared allowed-signers file.
           '';
+          settings = mkOpt (types.attrsOf types.anything) { } ''
+            Extra git config for this identity's repositories, rendered
+            with `lib.generators.toGitINI` into its included file.
+          '';
         };
       }
     )) { } "Per-remote git identities, applied via includeIf based on the remote URL.";
@@ -116,11 +120,14 @@ in
         mapAttrs' (
           name: identity:
           nameValuePair (identityTemplateName name) {
-            content = ''
-              [user]
-                email = ${identity.email}
-                signingKey = key::${identity.signingKey}
-            '';
+            content = lib.generators.toGitINI (
+              lib.recursiveUpdate {
+                user = {
+                  inherit (identity) email;
+                  signingKey = "key::${identity.signingKey}";
+                };
+              } identity.settings
+            );
           }
         ) cfg.identities
         // {
