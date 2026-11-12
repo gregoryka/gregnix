@@ -20,8 +20,17 @@ let
   sonarqubeSecretsFile = getFile "secrets/work/sonarqube.yaml";
   jenkinsSecretsFile = getFile "secrets/work/jenkins.yaml";
 
+  ghSecretsFile = getFile "secrets/work/${hostname}/gh.yaml";
+
   githubSigningKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBBdm9VQQSYhCdagTzOpOwtHZXzrz24vhelbi9IUbmJ3qc/OjwdEysOm0+O5xjwPdselTgTb5jAudlyfaay4TIvo=";
   githubEmail = "247164767+gregory-kanter-s1@users.noreply.github.com";
+
+  # Alongside the personal archetype's github.com identity, the work
+  # account only covers the work org's repositories. GitHub identifies the
+  # account by ssh key, so those connect through their own Host.
+  githubPersonal = config.gregnix.archetypes.personal.enable;
+  githubWorkOrg = "Sentinel-One";
+  githubWorkAlias = "github-s1";
 
   gheSigningKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBCDj6syYjOR2dZ6kSDr41O2G3+A3cmLFD6bKtw0y5r2bJHtPcle7PodSWI0wYdn0BPHD/7Lrn3qthIhpr6hBCPA=";
 
@@ -63,6 +72,7 @@ in
     gregnix.programs.terminal.tools.git.identities = {
       github = {
         remotes = [ "github.com" ];
+        owner = lib.mkIf githubPersonal githubWorkOrg;
         email = githubEmail;
         signingKey = githubSigningKey;
       };
@@ -79,6 +89,26 @@ in
         hostKeys = gheHostKeys;
       };
       "github.com".hostKeys = githubHostKeys;
+      ${githubWorkAlias} = lib.mkIf githubPersonal {
+        hostName = "github.com";
+        user = "git";
+        # The alias alone is unique, and `%n-%C` would exceed macOS' 104
+        # byte socket path limit.
+        controlPath = "~/.ssh/controlmasters/%n";
+      };
+    };
+
+    # Rewritten only when git connects: the configured remote URL stays
+    # `git@github.com:...`, which is what the identity's `includeIf`
+    # matches on. gh itself resolves the alias back to github.com via
+    # `ssh -G`.
+    programs.git.settings.url = lib.mkIf githubPersonal {
+      "git@${githubWorkAlias}:${githubWorkOrg}/".insteadOf = "git@github.com:${githubWorkOrg}/";
+    };
+
+    gregnix.programs.terminal.tools.gh.gitEmailTokens.work = lib.mkIf githubPersonal {
+      email = githubEmail;
+      sopsFile = ghSecretsFile;
     };
 
     gregnix.programs.terminal.tools.npm = {

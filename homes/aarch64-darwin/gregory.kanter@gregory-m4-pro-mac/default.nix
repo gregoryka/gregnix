@@ -16,6 +16,7 @@ in
 {
   gregnix = {
     archetypes.work.enable = true;
+    archetypes.personal.enable = true;
 
     user = {
       enable = true;
@@ -36,9 +37,13 @@ in
         fzf.enable = true;
         gh = {
           tokenSopsFile = lib.getFile "secrets/work/gregory-m4-pro-mac/gh.yaml";
+          tokenSopsKey = "gh_personal_token";
           enterpriseTokenSopsFile = lib.getFile "secrets/work/gregory-m4-pro-mac/gh.yaml";
         };
-        git.enable = true;
+        git = {
+          enable = true;
+          identities.github-personal.signingKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDI5PsLlWLx4LzYWXtSXkzaYuiwfjcStFwVxIJD708P0caNDLZU/J1C0LuSLwV9m2AaC19dCPvnUjmULsrrwDSA=";
+        };
         lazygit.enable = true;
         nh.enable = true;
         podman.enable = true;
@@ -67,6 +72,13 @@ in
             };
 
             "github.com" = {
+              user = "git";
+              identityAgent = secretiveSocket;
+              publicKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBHsAnxFsuKBJ5jAc237HTyHH0eCd/iE+Qi+DBx6kw0CnMdz4xmh3pR9b0xjDIYSVOicwPvFJ30CNl640y/vgA2Q=";
+              identitiesOnly = true;
+            };
+
+            "github-s1" = {
               user = "git";
               identityAgent = secretiveSocket;
               publicKey = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBIFn4LwHejbKrC95+ysTZK3UZ4gSlHsC/cjTY6boWCjlfAc1jcuoW6UX36QpzATPzMqlq0aqjhHSCVcB8Jt/EcA=";
