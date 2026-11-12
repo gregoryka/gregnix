@@ -14,7 +14,9 @@ let
     mapAttrsToList
     nameValuePair
     concatStringsSep
-    flatten
+    concatMap
+    partition
+    optionalString
     ;
   inherit (lib.gregnix) mkOpt;
   inherit (config.gregnix) user;
@@ -25,20 +27,26 @@ let
 
   # For each identity's remotes, emit both the ssh (git@) and https
   # includeIf conditions pointing at that identity's rendered file.
-  identityIncludes = flatten (
-    mapAttrsToList (
-      name: identity:
-      let
-        path = config.sops.templates.${identityTemplateName name}.path;
-      in
-      map (remote: ''
-        [includeIf "hasconfig:remote.*.url:git@${remote}:*/**"]
-          path = ${path}
-        [includeIf "hasconfig:remote.*.url:https://${remote}/**"]
-          path = ${path}
-      '') identity.remotes
-    ) cfg.identities
+  # Later includes win, so owner-scoped identities come last and override
+  # an unscoped one for the same host.
+  identitiesByScope = partition (identity: identity.owner != null) (
+    mapAttrsToList (name: identity: identity // { inherit name; }) cfg.identities
   );
+
+  identityIncludes = concatMap (
+    identity:
+    let
+      path = config.sops.templates.${identityTemplateName identity.name}.path;
+      sshOwner = if identity.owner == null then "*" else identity.owner;
+      httpsOwner = optionalString (identity.owner != null) "/${identity.owner}";
+    in
+    map (remote: ''
+      [includeIf "hasconfig:remote.*.url:git@${remote}:${sshOwner}/**"]
+        path = ${path}
+      [includeIf "hasconfig:remote.*.url:https://${remote}${httpsOwner}/**"]
+        path = ${path}
+    '') identity.remotes
+  ) (identitiesByScope.wrong ++ identitiesByScope.right);
 in
 {
   options.gregnix.programs.terminal.tools.git = {
@@ -53,6 +61,12 @@ in
             Remote hostnames to apply this identity to. Both the ssh
             (git@host) and https (https://host) forms are matched
             automatically via includeIf.
+          '';
+          owner = mkOpt (types.nullOr types.str) null ''
+            Restrict this identity to one owner's (user or org)
+            repositories on `remotes`. Takes precedence over identities
+            without an owner for the same host. Matching is
+            case-sensitive.
           '';
           email = mkOpt types.str "" "The `user.email` to use for this identity.";
           signingKey = mkOpt types.str "" ''
