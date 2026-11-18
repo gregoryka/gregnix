@@ -5,6 +5,7 @@
   fetchFromGitHub,
   fetchurl,
   installShellFiles,
+  versionCheckHook,
   inputs,
   github-attestation-check-hook,
   ...
@@ -107,6 +108,7 @@ let
 
         doInstallCheck = true;
         nativeInstallCheckInputs = [
+          versionCheckHook
           inputs.llm-agents.packages.${stdenvNoCC.hostPlatform.system}.codesignCheckHook
         ];
         codesignTeamId = "93ZUZ2PTM9";
@@ -167,6 +169,9 @@ let
       postInstall =
         lib.optionalString (stdenvNoCC.buildPlatform.canExecute stdenvNoCC.hostPlatform) installCompletions
         + installSkill;
+
+      doInstallCheck = true;
+      nativeInstallCheckInputs = [ versionCheckHook ];
 
       inherit meta;
     }

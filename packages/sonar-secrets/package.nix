@@ -6,6 +6,7 @@
   makeWrapper,
   zlib,
   coreutils,
+  versionCheckHook,
   sonarqube-cli,
   inputs,
   pgp-check-hook,
@@ -59,10 +60,18 @@ stdenvNoCC.mkDerivation {
   dontFixup = stdenvNoCC.hostPlatform.isDarwin;
   dontStrip = true;
 
-  doInstallCheck = stdenvNoCC.hostPlatform.isDarwin;
-  nativeInstallCheckInputs =
+  doInstallCheck = true;
+  nativeInstallCheckInputs = [
+    versionCheckHook
+  ]
+  ++
     lib.optional stdenvNoCC.hostPlatform.isDarwin
       inputs.llm-agents.packages.${stdenvNoCC.hostPlatform.system}.codesignCheckHook;
+  # The wrapper creates its cache directory under $HOME.
+  versionCheckKeepEnvironment = [ "HOME" ];
+  preVersionCheck = ''
+    export HOME="$(mktemp -d)"
+  '';
 
   installPhase = ''
     runHook preInstall
