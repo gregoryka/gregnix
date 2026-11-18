@@ -5,6 +5,7 @@
   autoPatchelfHook,
   makeWrapper,
   zlib,
+  coreutils,
   sonarqube-cli,
   inputs,
   pgp-check-hook,
@@ -66,7 +67,8 @@ stdenvNoCC.mkDerivation {
   installPhase = ''
     runHook preInstall
 
-    expected="$(grep -a -o 'SONAR_SECRETS_VERSION = "[0-9.]*' ${lib.getExe sonarqube-cli} | head -n1 | cut -d'"' -f2)"
+    # On Linux, bin/sonar is a wrapper script around bin/.sonar-wrapped.
+    expected="$({ grep -rahom1 'SONAR_SECRETS_VERSION = "[0-9.]*' ${sonarqube-cli}/bin || true; } | head -n1 | cut -d'"' -f2)"
     if [ "$expected" != "$version" ]; then
       echo "sonar-secrets: sonarqube-cli ${sonarqube-cli.version} expects '$expected', packaged $version" >&2
       exit 1
@@ -79,7 +81,7 @@ stdenvNoCC.mkDerivation {
     install -Dm0555 "$src" "$out/libexec/sonar-secrets"
     makeWrapper "$out/libexec/sonar-secrets" "$out/bin/sonar-secrets" \
       --run 'export SONAR_SECRETS_CACHE_DIR="''${SONAR_SECRETS_CACHE_DIR:-''${XDG_CACHE_HOME:-$HOME/.cache}/sonar-secrets}"' \
-      --run 'mkdir -p -m 700 "$SONAR_SECRETS_CACHE_DIR"'
+      --run '${coreutils}/bin/mkdir -p -m 700 "$SONAR_SECRETS_CACHE_DIR"'
 
     runHook postInstall
   '';
