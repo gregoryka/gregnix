@@ -1,15 +1,14 @@
 {
   inputs,
-  lib,
   ...
 }:
 {
-  imports = lib.optional (inputs.treefmt-nix ? flakeModule) inputs.treefmt-nix.flakeModule;
+  imports = [ inputs.treefmt-nix.flakeModule ];
 
   perSystem =
     { pkgs, ... }:
     {
-      treefmt = lib.mkIf (inputs.treefmt-nix ? flakeModule) {
+      treefmt = {
         flakeCheck = true;
         flakeFormatter = true;
 
