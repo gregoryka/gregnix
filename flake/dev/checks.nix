@@ -8,7 +8,12 @@
   imports = [ inputs.git-hooks-nix.flakeModule ];
 
   perSystem =
-    { pkgs, system, ... }:
+    {
+      pkgs,
+      self',
+      system,
+      ...
+    }:
     {
       pre-commit = {
         check.enable = false;
@@ -72,7 +77,11 @@
             name = "home-${name}";
             value = cfg.activationPackage;
           }) homesForSystem;
+          packageChecks = lib.mapAttrs' (name: package: {
+            name = "package-${name}";
+            value = package;
+          }) self'.packages;
         in
-        lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin darwinChecks // homeChecks;
+        lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin darwinChecks // homeChecks // packageChecks;
     };
 }
