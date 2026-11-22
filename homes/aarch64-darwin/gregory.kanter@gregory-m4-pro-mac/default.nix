@@ -7,8 +7,6 @@
   ...
 }:
 let
-  inherit (pkgs.stdenv.hostPlatform) isDarwin;
-  inherit (config.gregnix.programs.graphical.apps.vicinae) mkRaycastExt;
   inherit (config.gregnix.programs.terminal.tools.ssh) secretiveSocket;
 
   inherit (pkgs.gregnix.git-ssh-keygen-secretive) secretiveForwardedSocket;
@@ -115,30 +113,16 @@ in
 
       secretSettings.providers."@thomaslombart/jira".preferences.email = config.sops.placeholder.email;
 
-      extensions = [
-        (mkRaycastExt "github" "sha256-uMs2tU3vqy71eQSBELazffBzSrqcQJ0jI/HDiP1tqB0=")
-        (mkRaycastExt "github-for-enterprise" "sha256-qSR2XJdvg9zxaqc3ZBJ6gGsxncFIhcWqiaDZfZzgjoI=")
-        (mkRaycastExt "jenkins" "sha256-ShHVPqN9PIBD4RGRID3RZcry1k2ww6qx3tYnD04FNzk=")
-        (mkRaycastExt "jira" "sha256-3eMdi6sdkhOXKjFpBjnjFGKPFYI/Y9/WXb66+PWDSSs=")
-      ]
-      ++ lib.optional isDarwin (mkRaycastExt "brew" "sha256-+eWWML/OiijyHJAKFkpGORGJU3TErzLOigOnRKkhwvw=")
-      ++ lib.optional (osConfig.gregnix.programs.graphical.apps._1password.enable or false) (
-        (mkRaycastExt "1password" "sha256-NpAJi443OsEQwGKb/Tpkobn6pmjzwwYvTJjgvfMv/D8=").overrideAttrs
-          (old: {
-            # Upstream bug: `{vaults?.length && vaults.map(...)}` renders the
-            # literal number `0` (not `false`) as a JSX child when the vault
-            # list is empty. Real Raycast's DOM renderer tolerates a stray
-            # "0" text node; vicinae's reconciler doesn't implement
-            # `createTextInstance` for `List.Section` children at all and
-            # crashes instead. Coerce to a real boolean so no text node is
-            # ever produced.
-            postPatch = ''
-              substituteInPlace src/v8/components/Vaults.tsx \
-                --replace-fail '{vaults?.length &&' '{!!vaults?.length &&'
-            ''
-            + (old.postPatch or "");
-          })
-      );
+      extensions =
+        with pkgs.gregnix;
+        [
+          raycast-github
+          raycast-github-for-enterprise
+          raycast-jira
+          raycast-brew
+        ]
+        ++ lib.optional (osConfig.gregnix.programs.graphical.apps._1password.enable or false
+        ) raycast-1password;
     };
   };
 
