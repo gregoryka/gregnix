@@ -4,6 +4,7 @@
   fetchurl,
   nodejs_26,
   makeWrapper,
+  versionCheckHook,
   ...
 }:
 # Qodo ships as a single bundled qodo.mjs, resolved through
@@ -43,6 +44,14 @@ stdenv.mkDerivation {
       --set QODO_DISABLE_ANALYTICS 1
 
     runHook postInstall
+  '';
+
+  doInstallCheck = true;
+  nativeInstallCheckInputs = [ versionCheckHook ];
+  # qodo writes a device ID under $HOME on every start.
+  versionCheckKeepEnvironment = [ "HOME" ];
+  preVersionCheck = ''
+    export HOME="$(mktemp -d)"
   '';
 
   passthru = { inherit channel; };

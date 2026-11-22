@@ -9,6 +9,7 @@
     };
     module = import ./module { inherit inputs; };
     overlay = import ./overlay.nix { inherit inputs; };
+    raycast = import ./raycast { inherit inputs; };
     system = import ./system { inherit inputs; };
     theme = import ./theme { inherit inputs; };
     # keep-sorted end

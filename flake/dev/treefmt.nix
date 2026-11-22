@@ -1,21 +1,21 @@
 {
   inputs,
-  lib,
   ...
 }:
 {
-  imports = lib.optional (inputs.treefmt-nix ? flakeModule) inputs.treefmt-nix.flakeModule;
+  imports = [ inputs.treefmt-nix.flakeModule ];
 
   perSystem =
     { pkgs, ... }:
     {
-      treefmt = lib.mkIf (inputs.treefmt-nix ? flakeModule) {
+      treefmt = {
         flakeCheck = true;
         flakeFormatter = true;
 
         projectRootFile = "flake.nix";
 
         programs = {
+          actionlint.enable = true;
           deadnix = {
             enable = true;
             no-lambda-arg = true;
@@ -28,6 +28,7 @@
             enable = true;
             priority = -2;
           };
+          zizmor.enable = true;
         };
 
         settings = {

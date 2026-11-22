@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/setup-nix
+    schedule:
+      interval: weekly
+    # Matches the 7-day minimum age for new dependency versions.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore(ci)

@@ -2,7 +2,6 @@
   config,
   lib,
   pkgs,
-  inputs,
   osConfig ? { },
 
   ...
@@ -35,8 +34,6 @@ let
       imports = [ config.sops.templates."vicinae-secret-settings".path ];
     }
   );
-
-  vicinaeLib = inputs.vicinae.lib.${pkgs.stdenv.hostPlatform.system};
 in
 {
   options.gregnix.programs.graphical.apps.vicinae = {
@@ -88,99 +85,10 @@ in
 
     extensions = mkOpt (types.listOf types.package) [ ] ''
       Vicinae/Raycast extension packages to symlink into
-      `~/.local/share/vicinae/extensions`. Build entries with
-      `mkRaycastExt` below (for github:raycast/extensions) or
+      `~/.local/share/vicinae/extensions`, e.g. `pkgs.gregnix.raycast-*`
+      (built with `lib.raycast.mkExtension`) or
       `inputs.vicinae.lib.<system>.mkVicinaeExtension`.
     '';
-
-    raycastExtensionsRev = mkOpt types.str "a6faca32d6e243f35c3b3eeb881139aaad105d90" ''
-      Pinned github:raycast/extensions commit `mkRaycastExt` below
-      sparse-checks out from. Centralized here (rather than a flake input,
-      which would have to fetch the whole monorepo non-sparsely) so every
-      extension shares one rev without duplicating it -- bump this single
-      value, then refresh each extension's content hash.
-    '';
-
-    raycastCliHashes =
-      mkOpt (types.attrsOf types.str)
-        {
-          "1.39.2" = "03dkyzd8ln8s1q59kvripzy85fy16jsrq6xiv80a93rn5ly8zhdg";
-        }
-        ''
-          Maps a `@raycast/api` version to the sha256 of its `ray` CLI binary
-          from `cli.raycast.com/<version>/<arch>/ray`. Only older
-          `@raycast/api` releases (`bin.ray = "bin/ray"` in their
-          package.json) need this -- that wrapper downloads a native binary
-          at build time otherwise, breaking pure/offline builds. Newer
-          releases ship a self-contained, pure-JS oclif CLI at `bin/run.js`
-          instead and need no network access at all, so extensions pinned to
-          a version not listed here are assumed to be the newer kind and left
-          untouched. Compute a missing entry via
-          `nix-prefetch-url --type sha256 https://cli.raycast.com/<version>/<arch>/ray`.
-        '';
-
-    mkRaycastExt = mkOption {
-      type = lib.types.functionTo (lib.types.functionTo types.package);
-      readOnly = true;
-      default =
-        name: hash:
-        let
-          ext = vicinaeLib.mkRayCastExtension {
-            inherit name hash;
-            rev = cfg.raycastExtensionsRev;
-          };
-          apiVersion =
-            (builtins.fromJSON (builtins.readFile (ext.src + "/package-lock.json")))
-            .packages."node_modules/@raycast/api".version;
-          cliHash = cfg.raycastCliHashes.${apiVersion} or null;
-          arch =
-            if pkgs.stdenv.hostPlatform.isLinux then
-              "linux"
-            else if pkgs.stdenv.hostPlatform.isAarch64 then
-              "arm64"
-            else
-              "x86";
-        in
-        (
-          if cliHash == null then
-            ext
-          else
-            ext.overrideAttrs (old: {
-              preBuild = ''
-                install -Dm755 ${
-                  pkgs.fetchurl {
-                    url = "https://cli.raycast.com/${apiVersion}/${arch}/ray";
-                    sha256 = cliHash;
-                  }
-                } "node_modules/@raycast/api/bin/${arch}/ray"
-              ''
-              + (old.preBuild or "");
-            })
-        ).overrideAttrs
-          (old: {
-            # Some extensions (e.g. `brew`) ship a helper script under
-            # `assets/` (checked into upstream git as non-executable) that
-            # they lazily `chmod +x` themselves on first run. That self-heal
-            # fails here since the extension is symlinked read-only from the
-            # Nix store into `~/.local/share/vicinae/extensions`, so make any
-            # such scripts executable at build time instead.
-            postInstall = ''
-              if [ -d "$out/assets" ]; then
-                find "$out/assets" -name '*.sh' -exec chmod +x {} +
-              fi
-            ''
-            + (old.postInstall or "");
-          });
-      description = ''
-        Builds a `github:raycast/extensions` extension package, given the
-        extension directory's `name` and its sparse-checkout content
-        `hash` (each extension does its own `fetchFromGitHub` sparse
-        checkout at `raycastExtensionsRev`, so hashes differ per
-        extension). Also injects the `ray` CLI binary per
-        `raycastCliHashes` when the extension's `@raycast/api` version
-        needs it.
-      '';
-    };
   };
 
   config = mkIf cfg.enable {

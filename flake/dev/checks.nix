@@ -5,12 +5,17 @@
   ...
 }:
 {
-  imports = lib.optional (inputs.git-hooks-nix ? flakeModule) inputs.git-hooks-nix.flakeModule;
+  imports = [ inputs.git-hooks-nix.flakeModule ];
 
   perSystem =
-    { pkgs, ... }:
     {
-      pre-commit = lib.mkIf (inputs.git-hooks-nix ? flakeModule) {
+      pkgs,
+      self',
+      system,
+      ...
+    }:
+    {
+      pre-commit = {
         check.enable = false;
 
         settings.hooks = {
@@ -59,11 +64,24 @@
         };
       };
 
-      checks = lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin (
-        lib.mapAttrs' (name: cfg: {
-          name = "darwin-${name}";
-          value = cfg.system;
-        }) self.darwinConfigurations
-      );
+      checks =
+        let
+          darwinChecks = lib.mapAttrs' (name: cfg: {
+            name = "darwin-${name}";
+            value = cfg.system;
+          }) self.darwinConfigurations;
+          homesForSystem = lib.filterAttrs (
+            _: cfg: cfg.pkgs.stdenv.hostPlatform.system == system
+          ) self.homeConfigurations;
+          homeChecks = lib.mapAttrs' (name: cfg: {
+            name = "home-${name}";
+            value = cfg.activationPackage;
+          }) homesForSystem;
+          packageChecks = lib.mapAttrs' (name: package: {
+            name = "package-${name}";
+            value = package;
+          }) self'.packages;
+        in
+        lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin darwinChecks // homeChecks // packageChecks;
     };
 }

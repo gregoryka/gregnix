@@ -1,0 +1,101 @@
+name: Set up Nix
+description: >-
+  Install Lix with the machines' binary caches from
+  modules/common/nix/caches.json, then start Magic Nix Cache.
+
+runs:
+  using: composite
+  steps:
+    - name: Read the machines' binary caches
+      id: caches
+      shell: bash
+      run: |
+        {
+          echo 'config<<EOF'
+          echo 'extra-experimental-features = nix-command flakes'
+          echo 'accept-flake-config = false'
+          echo "extra-trusted-users = $USER"
+          jq -r '
+            "extra-substituters = \(.substituters | join(" "))",
+            "extra-trusted-public-keys = \(."trusted-public-keys" | join(" "))"
+          ' modules/common/nix/caches.json
+          echo 'EOF'
+        } >> "$GITHUB_OUTPUT"
+
+    # Lix publishes no GitHub Action, so this runs its installer directly, with
+    # the installer and the Lix tarball pinned by hash in lix.json.
+    - name: Read the Lix pins
+      id: lix
+      shell: bash
+      run: |
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64) system=x86_64-linux ;;
+          macOS-ARM64) system=aarch64-darwin ;;
+          *) echo "::error::No Lix pins for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
+        esac
+        jq -r --arg system "$system" '
+          "system=\($system)",
+          "installer-url=https://install.lix.systems/lix/\(.installer.version)/lix-installer-\($system)",
+          "installer-sha256=\(.installer.sha256[$system])",
+          "tarball-url=https://releases.lix.systems/lix/lix-\(.lix.version)/lix-\(.lix.version)-\($system).tar.xz",
+          "tarball-sha256=\(.lix.sha256[$system])"
+        ' "$GITHUB_ACTION_PATH/lix.json" >> "$GITHUB_OUTPUT"
+        echo "dir=$HOME/.cache/lix-install" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.lix.outputs.dir }}
+        key: lix-${{ steps.lix.outputs.system }}-${{ steps.lix.outputs.installer-sha256 }}-${{ steps.lix.outputs.tarball-sha256 }}
+
+    # Checked again after a cache hit, since any run on the repo can write caches.
+    - name: Download and verify Lix
+      shell: bash
+      env:
+        DIR: ${{ steps.lix.outputs.dir }}
+        INSTALLER_URL: ${{ steps.lix.outputs.installer-url }}
+        INSTALLER_SHA256: ${{ steps.lix.outputs.installer-sha256 }}
+        TARBALL_URL: ${{ steps.lix.outputs.tarball-url }}
+        TARBALL_SHA256: ${{ steps.lix.outputs.tarball-sha256 }}
+      run: |
+        fetch() {
+          local url=$1 sha256=$2 file=$DIR/${1##*/}
+          if ! echo "$sha256  $file" | shasum -a 256 -c --status 2> /dev/null; then
+            curl -sSfL --retry 3 -o "$file" "$url"
+            echo "$sha256  $file" | shasum -a 256 -c
+          fi
+        }
+        mkdir -p "$DIR"
+        fetch "$INSTALLER_URL" "$INSTALLER_SHA256"
+        fetch "$TARBALL_URL" "$TARBALL_SHA256"
+        chmod +x "$DIR/${INSTALLER_URL##*/}"
+
+    - name: Install Lix
+      shell: bash
+      env:
+        DIR: ${{ steps.lix.outputs.dir }}
+        INSTALLER_URL: ${{ steps.lix.outputs.installer-url }}
+        TARBALL_URL: ${{ steps.lix.outputs.tarball-url }}
+        EXTRA_CONF: ${{ steps.caches.outputs.config }}
+      run: |
+        sudo "$DIR/${INSTALLER_URL##*/}" install --no-confirm \
+          --nix-package-url "$DIR/${TARBALL_URL##*/}" \
+          --extra-conf "$EXTRA_CONF"
+        echo /nix/var/nix/profiles/default/bin >> "$GITHUB_PATH"
+        /nix/var/nix/profiles/default/bin/nix --version
+
+    # In the user's config, readable only by the runner user, rather than in
+    # the world-readable /etc/nix/nix.conf. Avoids GitHub's unauthenticated
+    # rate limit when fetching flake inputs.
+    - name: Give Nix the job token
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        mkdir -p ~/.config/nix
+        (umask 077 && printf 'access-tokens = github.com=%s\n' "$GH_TOKEN" > ~/.config/nix/nix.conf)
+
+    - name: Start Magic Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
+      with:
+        diagnostic-endpoint: ""
+        use-flakehub: false

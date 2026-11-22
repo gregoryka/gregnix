@@ -1,22 +1,22 @@
-{ inputs, lib, ... }:
-let
-  hasNixUnit = inputs.nix-unit ? modules;
-in
+{ inputs, ... }:
 {
-  imports = lib.optional hasNixUnit inputs.nix-unit.modules.flake.default;
+  imports = [ inputs.nix-unit.modules.flake.default ];
 
   perSystem = {
-    nix-unit = lib.mkIf hasNixUnit {
+    nix-unit = {
       # `checks.<system>.nix-unit` evaluates root `self#tests` in the build
       # sandbox. Pass locked root inputs explicitly so the check stays offline.
       inputs = {
         inherit (inputs)
           flake-parts
+          git-hooks-nix
           home-manager
           nix-darwin
+          nix-unit
           nixpkgs
           nur
           sops-nix
+          treefmt-nix
           ;
       };
     };

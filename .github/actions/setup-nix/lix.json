@@ -1,0 +1,16 @@
+{
+  "installer": {
+    "version": "2.95.2",
+    "sha256": {
+      "x86_64-linux": "57564e78a6d57126661fe5e793de70a72bacf9835ddb7c5c0cbfadf3db21545e",
+      "aarch64-darwin": "3c71fdcfeddac8fa075b626b6e0ddd9ba73af930e47b4fa027e22c7279f596ae"
+    }
+  },
+  "lix": {
+    "version": "2.95.4",
+    "sha256": {
+      "x86_64-linux": "5cae5282f22f9129a3f08fa440287a70d6064b411a3aae9f499f20786e319d2a",
+      "aarch64-darwin": "56bf3cfeed694c61454da18144c2089db338cdcb9f22c74dcaaa99215b6b3b7d"
+    }
+  }
+}

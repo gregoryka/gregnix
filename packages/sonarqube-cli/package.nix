@@ -2,6 +2,7 @@
   lib,
   stdenv,
   fetchurl,
+  versionCheckHook,
   pkgs,
   inputs,
   pgp-check-hook,
@@ -35,7 +36,15 @@ sonarqube-cli.overrideAttrs (old: {
   nativeBuildInputs = old.nativeBuildInputs or [ ] ++ [ pgp-check-hook ];
   nativeInstallCheckInputs =
     old.nativeInstallCheckInputs or [ ]
+    ++ [ versionCheckHook ]
     ++
       lib.optional stdenv.hostPlatform.isDarwin
         inputs.llm-agents.packages.${stdenv.hostPlatform.system}.codesignCheckHook;
+  # `sonar --version` prints only major.minor.patch, and writes logs under
+  # $HOME.
+  versionCheckKeepEnvironment = [ "HOME" ];
+  preVersionCheck = ''
+    export HOME="$(mktemp -d)"
+    version=${lib.versions.pad 3 version}
+  '';
 })
