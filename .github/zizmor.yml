@@ -1,0 +1,6 @@
+rules:
+  # The `$/...` form is rejected by actionlint 1.7.12 (nixpkgs). With `./...`,
+  # only the checkout step runs before the action loads, so nothing can
+  # replace it at runtime.
+  self-repository:
+    disable: true

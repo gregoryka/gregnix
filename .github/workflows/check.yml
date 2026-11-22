@@ -1,0 +1,179 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  eval:
+    name: Evaluate all systems
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-nix
+
+      - name: Evaluate every output
+        run: nix flake check --no-build --all-systems
+
+      - name: Check the nixpkgs inputs
+        run: nix run --inputs-from . nixpkgs#flake-checker -- --no-telemetry --fail-mode
+
+      - name: List changed flake inputs
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: nix run .#input-changes -- "$BASE_SHA" > input-changes.md
+
+      - if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: input-changes
+          path: input-changes.md
+
+  build:
+    name: Build (${{ matrix.system }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-darwin
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-nix
+
+      - name: Build every check
+        run: nix flake check --print-build-logs --keep-going
+
+      - name: Diff closures against the base branch
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SYSTEM: ${{ matrix.system }}
+        run: |
+          nix run .#closure-diff -- "$BASE_SHA" > "closure-diff-$SYSTEM.md"
+          cat "closure-diff-$SYSTEM.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: closure-diff-${{ matrix.system }}
+          path: closure-diff-${{ matrix.system }}.md
+
+  # The treefmt check runs zizmor offline; this adds the audits that query
+  # GitHub, such as impostor commits and known-vulnerable actions.
+  zizmor:
+    name: Audit workflows online
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-nix
+
+      - name: Run zizmor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --inputs-from . nixpkgs#zizmor -- --format=sarif . > zizmor.sarif
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zizmor-sarif
+          path: zizmor.sarif
+
+  # Separate from the zizmor job for the same reason as the comment job.
+  code-scanning:
+    name: Upload zizmor results
+    needs: zizmor
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # Uploads zizmor's results to code scanning
+    steps:
+      # Only read, to match the SARIF's paths to the source.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: zizmor-sarif
+
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: zizmor.sarif
+          category: zizmor
+
+  # Separate from the jobs that evaluate and build the PR's code, so that
+  # code never runs with a token that can write to the PR.
+  comment:
+    name: Post closure diff
+    needs: [eval, build]
+    if: >-
+      always() && github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # Creates or updates the closure-diff comment
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: diffs
+          merge-multiple: true
+
+      - name: Create or update the comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          marker='<!-- gregnix-closure-diff -->'
+          {
+            echo "$marker"
+            cat diffs/input-changes.md 2>/dev/null || echo 'Flake input changes: unavailable (evaluation failed).'
+            for system in x86_64-linux aarch64-darwin; do
+              echo
+              cat "diffs/closure-diff-$system.md" 2>/dev/null \
+                || echo "Closure changes ($system): unavailable (build failed)."
+            done
+          } > body.md
+          # GitHub rejects comments over 65536 characters.
+          if [ "$(wc -c < body.md)" -gt 60000 ]; then
+            head -c 60000 body.md > truncated.md
+            printf '\n```\n\nTruncated; see the job summaries.\n' >> truncated.md
+            mv truncated.md body.md
+          fi
+          printf '\n[Workflow run](%s)\n' "$RUN_URL" >> body.md
+
+          id="$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)"
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GH_REPO/issues/comments/$id" -F body=@body.md > /dev/null
+          else
+            gh pr comment "$PR" --body-file body.md
+          fi

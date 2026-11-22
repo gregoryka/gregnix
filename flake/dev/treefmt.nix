@@ -15,6 +15,7 @@
         projectRootFile = "flake.nix";
 
         programs = {
+          actionlint.enable = true;
           deadnix = {
             enable = true;
             no-lambda-arg = true;
@@ -27,6 +28,7 @@
             enable = true;
             priority = -2;
           };
+          zizmor.enable = true;
         };
 
         settings = {
