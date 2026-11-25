@@ -54,6 +54,9 @@ jobs:
           - system: aarch64-darwin
             runner: macos-latest
     runs-on: ${{ matrix.runner }}
+    # The Cachix token is in the `cachix` environment, which only main can
+    # use; other runs get no environment, so PR code never sees the token.
+    environment: ${{ github.event_name == 'push' && 'cachix' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,6 +67,18 @@ jobs:
 
       - name: Build every check
         run: nix flake check --print-build-logs --keep-going
+
+      # Pushes the closure of flake/dev/cachix.nix's roots; cachix skips the
+      # paths cache.nixos.org already has.
+      - name: Push to Cachix
+        if: github.event_name == 'push'
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          SYSTEM: ${{ matrix.system }}
+        run: |
+          roots="$(nix build --no-link --print-out-paths --print-build-logs \
+            ".#legacyPackages.$SYSTEM.cachix-roots")"
+          nix run --inputs-from . nixpkgs#cachix -- push gregoryka "$roots"
 
       - name: Diff closures against the base branch
         if: github.event_name == 'pull_request'

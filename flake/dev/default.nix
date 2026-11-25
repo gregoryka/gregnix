@@ -5,6 +5,7 @@
 }:
 {
   imports = [
+    ./cachix.nix
     ./checks.nix
     ./ci.nix
     ./devshells.nix
