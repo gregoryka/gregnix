@@ -19,6 +19,7 @@ let
     inherit pkgs;
     name = "jk";
     executable = lib.getExe package;
+    inherit (config.sops) age;
 
     sopsEnv.JK_TOKEN = {
       sopsFile = cfg.tokenSopsFile;

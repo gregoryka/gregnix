@@ -25,6 +25,7 @@ let
     inherit pkgs;
     name = "qodo";
     executable = lib.getExe pkgs.gregnix.qodo-cli;
+    inherit (config.sops) age;
 
     sopsEnv =
       lib.optionalAttrs (cfg.sdkUrlSopsFile != null) {

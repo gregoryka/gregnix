@@ -143,6 +143,15 @@ rec {
     `env`
     : attrsOf str -- ENV_VAR -> fixed, non-secret value, exported
       before the sops fields. Defaults to `{ }`.
+
+    `age`
+    : `{ keyFile :: str?; plugins :: [package]? }`, usually
+      `config.sops.age`. `keyFile` becomes the default
+      `SOPS_AGE_KEY_FILE` and `plugins` go on the wrapper's PATH, so
+      decryption doesn't depend on the caller's environment (e.g. GUI
+      apps launched without `XDG_CONFIG_HOME`, where sops would look in
+      `~/Library/Application Support/sops/age` on Darwin). Defaults to
+      `{ }`.
   */
   mkSecretsWrapper =
     {
@@ -151,8 +160,17 @@ rec {
       name,
       sopsEnv,
       env ? { },
+      age ? { },
     }:
     let
+      ageKeyFile = age.keyFile or null;
+
+      ageKeyFileExport = lib.optionalString (ageKeyFile != null) ''
+        if [[ -z "''${SOPS_AGE_KEY_FILE:-}" ]]; then
+          export ${lib.toShellVar "SOPS_AGE_KEY_FILE" ageKeyFile}
+        fi
+      '';
+
       envExports = lib.concatStrings (
         lib.mapAttrsToList (envVar: value: ''
           export ${lib.toShellVar envVar value}
@@ -192,9 +210,9 @@ rec {
     in
     pkgs.writeShellApplication {
       inherit name;
-      runtimeInputs = [ pkgs.sops ];
+      runtimeInputs = [ pkgs.sops ] ++ age.plugins or [ ];
       text = ''
-        ${envExports}${sopsExports}
+        ${ageKeyFileExport}${envExports}${sopsExports}
         exec "${executable}" "$@"
       '';
       meta.mainProgram = name;

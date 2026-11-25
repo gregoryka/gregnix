@@ -32,6 +32,7 @@ let
     inherit pkgs;
     name = "sonar";
     executable = lib.getExe package;
+    inherit (config.sops) age;
 
     sopsEnv = {
       SONARQUBE_CLI_TOKEN = {

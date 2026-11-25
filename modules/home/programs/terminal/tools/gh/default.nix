@@ -29,6 +29,7 @@ let
     inherit pkgs;
     name = "gh";
     executable = lib.getExe pkgs.gh;
+    inherit (config.sops) age;
 
     sopsEnv =
       lib.optionalAttrs (cfg.tokenSopsFile != null || cfg.gitEmailTokens != { }) {
