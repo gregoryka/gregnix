@@ -111,6 +111,10 @@ in
       sopsFile = ghSecretsFile;
     };
 
+    gregnix.programs.terminal.tools.lazygit.githubEnterpriseHosts = [
+      config.sops.placeholder.ghe_domain
+    ];
+
     gregnix.programs.terminal.tools.npm = {
       enable = true;
       hostPath = config.sops.placeholder.artifactory_npm_registry;
