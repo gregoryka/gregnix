@@ -1,7 +1,7 @@
 name: Set up Nix
 description: >-
   Install Lix with the machines' binary caches from
-  modules/common/nix/caches.json, then start Magic Nix Cache.
+  modules/common/nix/caches.json, then start Magic Nix Cache behind them.
 
 runs:
   using: composite
@@ -99,3 +99,17 @@ runs:
       with:
         diagnostic-endpoint: ""
         use-flakehub: false
+
+    # Magic Nix Cache adds itself at priority 1, so Nix asks it first for every
+    # path and the GitHub cache API throttles it. At 100 it comes after the
+    # other caches (30-41) and is only asked for paths none of them have.
+    - name: Move Magic Nix Cache behind the other caches
+      shell: bash
+      run: |
+        conf=~/.config/nix/nix.conf
+        sed -i.orig '/^extra-substituters = http:\/\/127\.0\.0\.1:/s/&priority=1$/\&priority=100/' "$conf"
+        rm "$conf.orig"
+        if ! grep -q '^extra-substituters = http://127\.0\.0\.1:.*&priority=100$' "$conf"; then
+          echo "::error::No Magic Nix Cache substituter at priority 1 in $conf"
+          exit 1
+        fi
